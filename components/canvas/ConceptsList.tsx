@@ -39,18 +39,16 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
     concept.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleCreateConcept = () => {
+  const handleCreateConcept = async () => {
     if (!newConceptTitle.trim() || !newConceptSnippet.trim()) return;
     
-    const chatId = `chat_${Date.now()}`;
-    addConcept({
+    const { conceptId } = await addConcept({
       title: newConceptTitle,
       snippet: newConceptSnippet,
       sourceType: newConceptUrl ? "url" : "chat",
       sourceUrl: newConceptUrl || undefined,
-      chatId,
-      diveId,
     });
+    setSelectedConcept(conceptId);
     
     setNewConceptTitle("");
     setNewConceptSnippet("");

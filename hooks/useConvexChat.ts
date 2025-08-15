@@ -1,7 +1,17 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { useCallback } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
-interface Message {
+interface UseConvexChatOptions {
+  chatId: string;
+  conceptId?: string | null;
+  userId: string;        // Convex user id
+  diveId: string;        // For concept creation from chat
+}
+
+// Minimal message shape used by the UI
+export interface Message {
   _id: string;
   role: "system" | "user" | "assistant" | "note";
   content: string;
@@ -11,131 +21,78 @@ interface Message {
   tokenCount?: number;
 }
 
-interface UseConvexChatOptions {
-  chatId: string;
-  conceptId?: string | null;
-}
+export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexChatOptions) {
+  const messages =
+    useQuery(
+      api.messages.listByChat,
+      chatId ? ({ chatId: chatId as unknown as Id<"chats"> }) : "skip"
+    ) || [];
 
-export function useConvexChat({ chatId, conceptId }: UseConvexChatOptions) {
-  const { data: session } = useSession();
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
-  
-  // For demo/MVP, we'll use local state with the option to sync to Convex later
-  // In production, these would be real Convex queries/mutations
-  
-  // Mock query for messages
-  const messages = localMessages; // In production: useQuery(api.messages.listByChat, { chatId });
-  
-  // Mock mutations
-  const createUserMessage = useCallback(async (content: string, parentMessageId?: string) => {
-    const newMessage: Message = {
-      _id: `user_${Date.now()}`,
-      role: "user",
-      content,
-      parentMessageId,
-      depth: parentMessageId ? (localMessages.find(m => m._id === parentMessageId)?.depth || 0) + 1 : 0,
-      createdAt: Date.now(),
-    };
-    
-    setLocalMessages(prev => [...prev, newMessage]);
-    
-    // In production, call Convex mutation:
-    // await createUserMessageMutation({ chatId, content, parentMessageId, userId });
-    
-    return newMessage;
-  }, [localMessages]);
+  const createUser = useMutation(api.messages.createUser);
+  const createAssistant = useMutation(api.messages.createAssistant);
+  const branch = useMutation(api.messages.branch);
+  const createConcept = useMutation(api.concepts.create);
 
-  const createAssistantMessage = useCallback(async (
-    content: string, 
-    parentMessageId: string,
-    tokenCount?: number
-  ) => {
-    const parentMessage = localMessages.find(m => m._id === parentMessageId);
-    const newMessage: Message = {
-      _id: `assistant_${Date.now()}`,
-      role: "assistant",
-      content,
-      parentMessageId,
-      depth: (parentMessage?.depth || 0) + 1,
-      createdAt: Date.now(),
-      tokenCount,
-    };
-    
-    setLocalMessages(prev => [...prev, newMessage]);
-    
-    // In production, call Convex mutation:
-    // await createAssistantMessageMutation({ chatId, content, parentMessageId, tokenCount, userId });
-    
-    return newMessage;
-  }, [localMessages]);
+  const createUserMessage = useCallback(
+    async (content: string, parentMessageId?: string) => {
+      const id = await createUser({
+        chatId: chatId as unknown as Id<"chats">,
+        parentMessageId: parentMessageId as unknown as Id<"messages"> | undefined,
+        content,
+        userId: userId as unknown as Id<"users">,
+      });
+      // Return a lightweight message handle for downstream use
+      return { _id: id as string, role: "user", content } as Message;
+    },
+    [chatId, createUser, userId]
+  );
 
-  const createBranch = useCallback(async (
-    fromAssistantMessageId: string,
-    userContent: string
-  ) => {
-    const assistantMessage = localMessages.find(m => m._id === fromAssistantMessageId);
-    if (!assistantMessage || assistantMessage.role !== "assistant") {
-      throw new Error("Can only branch from assistant messages");
-    }
+  const createAssistantMessage = useCallback(
+    async (content: string, parentMessageId: string, tokenCount?: number) => {
+      const id = await createAssistant({
+        chatId: chatId as unknown as Id<"chats">,
+        parentMessageId: parentMessageId as unknown as Id<"messages">,
+        content,
+        tokenCount,
+        userId: userId as unknown as Id<"users">,
+      });
+      return { _id: id as string, role: "assistant", content } as Message;
+    },
+    [chatId, createAssistant, userId]
+  );
 
-    const branchMessage: Message = {
-      _id: `branch_${Date.now()}`,
-      role: "user",
-      content: userContent,
-      parentMessageId: fromAssistantMessageId,
-      depth: assistantMessage.depth + 1,
-      createdAt: Date.now(),
-    };
-    
-    setLocalMessages(prev => [...prev, branchMessage]);
-    
-    // In production, call Convex mutation:
-    // await branchMutation({ chatId, fromAssistantMessageId, userContent, userId });
-    
-    return branchMessage;
-  }, [localMessages]);
+  const createBranch = useCallback(
+    async (fromAssistantMessageId: string, userContent: string) => {
+      const id = await branch({
+        chatId: chatId as unknown as Id<"chats">,
+        fromAssistantMessageId: fromAssistantMessageId as unknown as Id<"messages">,
+        userContent,
+        userId: userId as unknown as Id<"users">,
+      });
+      return { _id: id as string, role: "user", content: userContent } as Message;
+    },
+    [branch, chatId, userId]
+  );
 
-  const createConcept = useCallback(async (
-    title: string,
-    snippet: string,
-    messageId?: string
-  ) => {
-    // In production, call Convex mutation to create concept
-    console.log("Creating concept:", { 
-      title, 
-      snippet, 
-      chatId, 
-      messageId,
-      diveId: "current_dive_id", // Get from context
-    });
-    
-    // Return mock concept ID
-    return `concept_${Date.now()}`;
-  }, [chatId]);
-
-  // Initialize with concept note if provided (guard against StrictMode double-invocation)
-  const initializedRef = useRef(false);
-  useEffect(() => {
-    if (initializedRef.current) return;
-    if (conceptId && localMessages.length === 0) {
-      const initialNote: Message = {
-        _id: "initial_note",
-        role: "note",
-        content: "# Concept\n\n> This is the initial concept that started this conversation.\n\nReady to explore!",
-        depth: 0,
-        createdAt: Date.now() - 10000,
-      };
-      setLocalMessages([initialNote]);
-      initializedRef.current = true;
-    }
-  }, [conceptId, localMessages.length]);
+  const createConceptFromMessage = useCallback(
+    async (title: string, snippet: string) => {
+      const res = await createConcept({
+        diveId: diveId as unknown as Id<"dives">,
+        title,
+        snippet,
+        sourceType: "chat",
+        userId: userId as unknown as Id<"users">,
+      });
+      return res as { conceptId: string; chatId: string };
+    },
+    [createConcept, diveId, userId]
+  );
 
   return {
     messages,
     createUserMessage,
     createAssistantMessage,
     createBranch,
-    createConcept,
-    setMessages: setLocalMessages, // For demo purposes
+    createConcept: createConceptFromMessage,
   };
 }

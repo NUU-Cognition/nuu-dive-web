@@ -9,6 +9,7 @@ import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
 import { useStreamChat } from "@/hooks/useStreamChat";
 import { useConvexChat } from "@/hooks/useConvexChat";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import {
   Dialog,
   DialogContent,
@@ -38,33 +39,50 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Workspace context for user & dive metadata
+  const { currentUserId, diveId } = useWorkspace();
+
   // Use Convex chat hook for real-time sync
   const {
-    messages,
+    messages = [],
     createUserMessage,
     createAssistantMessage,
     createBranch,
     createConcept,
-  } = useConvexChat({ chatId, conceptId });
+  } = useConvexChat({
+    chatId,
+    conceptId,
+    userId: currentUserId || "",
+    diveId,
+  });
+
+  // Track the parent message id for the assistant's reply to avoid races
+  const [pendingParentId, setPendingParentId] = useState<string | null>(null);
 
   // Streaming hook for LLM responses
   const { sendMessage, isStreaming } = useStreamChat({
     onToken: (token) => {
       setStreamingMessage((prev) => prev + token);
     },
-    onComplete: async (fullText, messageId) => {
-      // Save assistant message to Convex
-      const lastUserMessage = messages[messages.length - 1];
-      await createAssistantMessage(
-        fullText,
-        lastUserMessage._id,
-        fullText.split(" ").length
-      );
+    onComplete: async (fullText) => {
+      // Save assistant message to Convex at the exact branch/user parent
+      const parentId = pendingParentId || (messages[messages.length - 1]?._id);
+      if (parentId) {
+        await createAssistantMessage(
+          fullText,
+          parentId,
+          fullText.split(" ").length
+        );
+      } else {
+        console.warn("No parent message found for assistant reply.");
+      }
+      setPendingParentId(null);
       setStreamingMessage("");
     },
     onError: (error) => {
       console.error("Stream error:", error);
       setStreamingMessage("");
+      setPendingParentId(null);
     },
   });
 
@@ -76,12 +94,9 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     if (!inputValue.trim() || isStreaming) return;
 
     const parentMessage = messages[messages.length - 1];
-    
     // Create user message in Convex
-    const newUserMessage = await createUserMessage(
-      inputValue,
-      parentMessage?._id
-    );
+    const newUserMessage = await createUserMessage(inputValue, parentMessage?._id);
+    setPendingParentId(newUserMessage._id);
     
     setInputValue("");
 
@@ -106,6 +121,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
     // Create branch in Convex
     const branchMessage = await createBranch(branchFromId, branchInput);
+    setPendingParentId(branchMessage._id);
     
     setBranchInput("");
     setBranchDialogOpen(false);
@@ -136,11 +152,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const handleCreateConcept = async () => {
     if (!conceptTitle.trim() || !conceptSnippet.trim()) return;
 
-    await createConcept(
-      conceptTitle,
-      conceptSnippet,
-      selectedMessageForConcept?._id
-    );
+    await createConcept(conceptTitle, conceptSnippet);
 
     setExtractConceptDialog(false);
     setConceptTitle("");

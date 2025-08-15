@@ -22,6 +22,43 @@ export const list = query({
   },
 });
 
+export const listByUser = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Get user's workspace
+    const user = await ctx.db.get(args.userId);
+    if (!user?.workspaceId) {
+      return [];
+    }
+    
+    // Get all dives in that workspace
+    const dives = await ctx.db
+      .query("dives")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", user.workspaceId))
+      .order("desc")
+      .collect();
+    
+    // Get concept count for each dive
+    const divesWithCounts = await Promise.all(
+      dives.map(async (dive) => {
+        const concepts = await ctx.db
+          .query("concepts")
+          .withIndex("by_dive", (q) => q.eq("diveId", dive._id))
+          .collect();
+        
+        return {
+          ...dive,
+          conceptCount: concepts.length,
+        };
+      })
+    );
+    
+    return divesWithCounts;
+  },
+});
+
 export const get = query({
   args: {
     diveId: v.id("dives"),

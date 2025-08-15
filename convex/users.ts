@@ -64,3 +64,25 @@ export const getByEmail = query({
     };
   },
 });
+
+export const get = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    
+    if (!user) {
+      return null;
+    }
+    
+    const workspace = user.workspaceId
+      ? await ctx.db.get(user.workspaceId)
+      : null;
+    
+    return {
+      ...user,
+      workspace,
+    };
+  },
+});

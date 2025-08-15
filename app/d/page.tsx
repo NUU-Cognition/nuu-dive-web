@@ -2,6 +2,9 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,9 +29,57 @@ export default function DivesListPage() {
   const [newDiveTitle, setNewDiveTitle] = useState("");
   const [newDiveDescription, setNewDiveDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
 
-  // Local state for dives - will be replaced with real Convex queries later
-  const [dives, setDives] = useState([
+  // Get or create Convex user
+  const getOrCreateUser = useMutation(api.users.getOrCreate);
+  
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      if (!session?.user?.email) return;
+      try {
+        const userId = await getOrCreateUser({
+          email: session.user.email,
+          name: session.user.name || session.user.email.split("@")[0],
+          image: (session.user as any).image,
+        });
+        if (!canceled) {
+          setCurrentUserId(userId as string);
+        }
+      } catch (e) {
+        console.error("Failed to init Convex user:", e);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [session?.user?.email, session?.user?.name, getOrCreateUser]);
+
+  // Get user's workspace (skip if no userId yet)
+  const user = useQuery(
+    api.users.get,
+    currentUserId ? { userId: currentUserId as Id<"users"> } : "skip"
+  );
+  
+  useEffect(() => {
+    if (user?.workspaceId) {
+      setCurrentWorkspaceId(user.workspaceId as string);
+    }
+  }, [user?.workspaceId]);
+
+  // Get dives from Convex (skip if no userId yet)
+  const convexDives = useQuery(
+    api.dives.listByUser,
+    currentUserId ? { userId: currentUserId as Id<"users"> } : "skip"
+  ) || [];
+
+  // Create dive mutation
+  const createDive = useMutation(api.dives.create);
+
+  // Mock dives for when Convex isn't ready yet
+  const mockDives = [
     {
       _id: "1",
       title: "Quantum Computing Research",
@@ -45,7 +96,10 @@ export default function DivesListPage() {
       updatedAt: Date.now() - 7200000,
       conceptCount: 8,
     },
-  ]);
+  ];
+
+  // Use Convex dives if available, otherwise show mock dives
+  const dives = convexDives.length > 0 ? convexDives : mockDives;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -63,21 +117,28 @@ export default function DivesListPage() {
 
   const handleCreateDive = async () => {
     if (!newDiveTitle.trim()) return;
+    if (!currentUserId || !currentWorkspaceId) {
+      console.error("User or workspace not initialized");
+      return;
+    }
     
-    const now = Date.now();
-    const newDive = {
-      _id: String(now),
-      title: newDiveTitle.trim(),
-      description: newDiveDescription.trim(),
-      createdAt: now,
-      updatedAt: now,
-      conceptCount: 0,
-    };
-    setDives((prev) => [newDive, ...prev]);
-    
-    setNewDiveTitle("");
-    setNewDiveDescription("");
-    setCreateDialogOpen(false);
+    try {
+      const diveId = await createDive({
+        title: newDiveTitle.trim(),
+        description: newDiveDescription.trim() || undefined,
+        workspaceId: currentWorkspaceId as Id<"workspaces">,
+        userId: currentUserId as Id<"users">,
+      });
+      
+      setNewDiveTitle("");
+      setNewDiveDescription("");
+      setCreateDialogOpen(false);
+      
+      // Navigate to the new dive
+      router.push(`/d/${diveId}`);
+    } catch (error) {
+      console.error("Failed to create dive:", error);
+    }
   };
 
   const filteredDives = dives.filter((dive) =>

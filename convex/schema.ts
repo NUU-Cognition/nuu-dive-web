@@ -33,7 +33,7 @@ export default defineSchema({
     diveId: v.id("dives"),
     title: v.string(),
     snippet: v.string(),
-    sourceType: v.union(v.literal("url"), v.literal("pdf")),
+    sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({

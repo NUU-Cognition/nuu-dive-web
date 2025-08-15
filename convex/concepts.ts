@@ -6,7 +6,7 @@ export const create = mutation({
     diveId: v.id("dives"),
     title: v.string(),
     snippet: v.string(),
-    sourceType: v.union(v.literal("url"), v.literal("pdf")),
+    sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
     locatorCss: v.optional(v.string()),
     pdfId: v.optional(v.id("_storage")),
@@ -50,11 +50,17 @@ export const create = mutation({
     });
     
     // Create an initial note message with the concept snippet
+    const sourceLabel =
+      args.sourceType === "url"
+        ? (args.sourceUrl || "URL")
+        : args.sourceType === "pdf"
+          ? "PDF"
+          : "Chat";
     await ctx.db.insert("messages", {
       chatId,
       parentMessageId: undefined,
       role: "note",
-      content: `# ${args.title}\n\n> ${args.snippet}\n\nSource: ${args.sourceUrl || "PDF"}`,
+      content: `# ${args.title}\n\n> ${args.snippet}\n\nSource: ${sourceLabel}`,
       createdBy: args.userId,
       createdAt,
       depth: 0,
