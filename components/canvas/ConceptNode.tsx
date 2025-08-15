@@ -8,7 +8,7 @@ interface ConceptNodeProps {
   data: {
     title: string;
     snippet: string;
-    sourceType: "url" | "pdf";
+    sourceType: "url" | "pdf" | "chat";
     selected: boolean;
   };
 }

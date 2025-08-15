@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 
 interface Message {
@@ -115,8 +115,10 @@ export function useConvexChat({ chatId, conceptId }: UseConvexChatOptions) {
     return `concept_${Date.now()}`;
   }, [chatId]);
 
-  // Initialize with concept note if provided
+  // Initialize with concept note if provided (guard against StrictMode double-invocation)
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
     if (conceptId && localMessages.length === 0) {
       const initialNote: Message = {
         _id: "initial_note",
@@ -126,6 +128,7 @@ export function useConvexChat({ chatId, conceptId }: UseConvexChatOptions) {
         createdAt: Date.now() - 10000,
       };
       setLocalMessages([initialNote]);
+      initializedRef.current = true;
     }
   }, [conceptId, localMessages.length]);
 

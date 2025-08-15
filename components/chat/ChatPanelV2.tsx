@@ -155,41 +155,60 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     }
   };
 
+  // De-dup first so the same message id can't appear twice
+  function dedupeById<T extends { _id: string }>(arr: T[]): T[] {
+    const seen = new Set<string>();
+    return arr.filter((m) => {
+      if (seen.has(m._id)) return false;
+      seen.add(m._id);
+      return true;
+    });
+  }
+
   // Build message tree for visualization
-  const buildMessageTree = (messages: any[]): any[] => {
-    const messageMap = new Map(messages.map(m => [m._id, { ...m, children: [] }]));
+  function buildMessageTree(all: any[]): any[] {
+    const messages = dedupeById(all);
+
+    const nodeMap = new Map(messages.map(m => [m._id, { ...m, children: [] as any[] }]));
     const roots: any[] = [];
 
-    messages.forEach(message => {
-      const msg = messageMap.get(message._id)!;
-      if (message.parentMessageId) {
-        const parent = messageMap.get(message.parentMessageId);
-        if (parent) {
-          parent.children = parent.children || [];
-          parent.children.push(msg);
-        }
+    for (const m of messages) {
+      const node = nodeMap.get(m._id)!;
+      if (m.parentMessageId) {
+        const parent = nodeMap.get(m.parentMessageId);
+        if (parent) parent.children.push(node);
+        // If parent is missing (e.g., filtered), treat as root
+        else roots.push(node);
       } else {
-        roots.push(msg);
+        roots.push(node);
       }
-    });
+    }
 
     return roots;
-  };
+  }
 
-  const renderMessageTree = (messages: any[], depth: number = 0): JSX.Element[] => {
-    return messages.flatMap(message => [
-      <MessageItem
-        key={message._id}
-        message={message}
-        isLatest={message._id === messages[messages.length - 1]?._id}
-        onBranch={() => handleBranch(message._id)}
-        onCopy={() => handleCopy(message.content)}
-        onExtractConcept={() => handleExtractConcept(message)}
-        depth={depth}
-      />,
-      ...(message.children ? renderMessageTree(message.children, depth + 1) : [])
-    ]);
-  };
+  // Give every rendered node a stable *path key* to guarantee uniqueness
+  function renderMessageTree(nodes: any[], allMessages: any[], depth = 0, path = "r"): JSX.Element[] {
+    const latestId = allMessages.length ? allMessages[allMessages.length - 1]._id : undefined;
+
+    return nodes.flatMap((node, idx) => {
+      const keyPath = `${path}-${idx}`; // unique per position
+      const children = node.children ? renderMessageTree(node.children, allMessages, depth + 1, keyPath) : [];
+
+      return [
+        <MessageItem
+          key={`msg-${node._id}-${keyPath}`}
+          message={node}
+          isLatest={node._id === latestId}
+          onBranch={() => handleBranch(node._id)}
+          onCopy={() => handleCopy(node.content)}
+          onExtractConcept={() => handleExtractConcept(node)}
+          depth={depth}
+        />,
+        ...children,
+      ];
+    });
+  }
 
   const messageTree = buildMessageTree(messages);
 
@@ -224,7 +243,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {renderMessageTree(messageTree)}
+          {renderMessageTree(messageTree, messages)}
           
           {/* Streaming message */}
           {streamingMessage && (

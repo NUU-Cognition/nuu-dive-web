@@ -53,9 +53,7 @@ export default function MessageItem({
 
   return (
     <div 
-      className={`group relative flex gap-3 ${
-        depth > 0 ? `ml-${Math.min(depth * 4, 16)}` : ""
-      }`}
+      className="group relative flex gap-3"
       style={{ marginLeft: depth > 0 ? `${depth * 16}px` : 0 }}
     >
       {/* Branch indicator for nested messages */}
