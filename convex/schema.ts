@@ -29,12 +29,27 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_creator", ["createdBy"]),
 
+  documents: defineTable({
+    diveId: v.id("dives"),
+    kind: v.union(v.literal("url"), v.literal("pdf")),
+    title: v.string(),
+    url: v.optional(v.string()),
+    pdfId: v.optional(v.id("_storage")),
+    pdfMeta: v.optional(v.object({
+      fileName: v.string(),
+      pageCount: v.optional(v.number()),
+    })),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_dive", ["diveId"]),
+
   concepts: defineTable({
     diveId: v.id("dives"),
     title: v.string(),
     snippet: v.string(),
     sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
+    documentId: v.optional(v.id("documents")),
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
       fileName: v.string(),
@@ -49,18 +64,21 @@ export default defineSchema({
     locatorCss: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
-  }).index("by_dive", ["diveId"]),
+  }).index("by_dive", ["diveId"]).index("by_document", ["documentId"]),
 
   chats: defineTable({
     diveId: v.id("dives"),
-    conceptId: v.optional(v.id("concepts")),
+    anchorType: v.optional(v.union(v.literal("document"), v.literal("concept"), v.literal("free"))), // Made optional for backwards compatibility
+    anchorId: v.optional(v.union(v.id("documents"), v.id("concepts"))),
+    conceptId: v.optional(v.id("concepts")), // Keep for backwards compatibility
     title: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_dive", ["diveId"])
-    .index("by_concept", ["conceptId"]),
+    .index("by_concept", ["conceptId"])
+    .index("by_anchor", ["anchorType", "anchorId"]),
 
   messages: defineTable({
     chatId: v.id("chats"),

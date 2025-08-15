@@ -17,8 +17,10 @@ import type * as attachments from "../attachments.js";
 import type * as chats from "../chats.js";
 import type * as concepts from "../concepts.js";
 import type * as dives from "../dives.js";
+import type * as documents from "../documents.js";
 import type * as exports from "../exports.js";
 import type * as messages from "../messages.js";
+import type * as migrations from "../migrations.js";
 import type * as users from "../users.js";
 
 /**
@@ -34,8 +36,10 @@ declare const fullApi: ApiFromModules<{
   chats: typeof chats;
   concepts: typeof concepts;
   dives: typeof dives;
+  documents: typeof documents;
   exports: typeof exports;
   messages: typeof messages;
+  migrations: typeof migrations;
   users: typeof users;
 }>;
 export declare const api: FilterApi<

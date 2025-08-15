@@ -8,6 +8,7 @@ export const create = mutation({
     snippet: v.string(),
     sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
+    documentId: v.optional(v.id("documents")),
     locatorCss: v.optional(v.string()),
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
@@ -20,6 +21,7 @@ export const create = mutation({
         h: v.number(),
       })),
     })),
+    firstQuestion: v.optional(v.string()), // optional for flexibility
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -32,6 +34,7 @@ export const create = mutation({
       snippet: args.snippet,
       sourceType: args.sourceType,
       sourceUrl: args.sourceUrl,
+      documentId: args.documentId,
       pdfId: args.pdfId,
       pdfMeta: args.pdfMeta,
       locatorCss: args.locatorCss,
@@ -39,10 +42,12 @@ export const create = mutation({
       createdAt,
     });
     
-    // Auto-create a chat for this concept
+    // Auto-create a chat for this concept with proper anchor
     const chatId = await ctx.db.insert("chats", {
       diveId: args.diveId,
-      conceptId,
+      anchorType: "concept",
+      anchorId: conceptId,
+      conceptId, // Keep for backwards compatibility
       title: args.title,
       createdBy: args.userId,
       createdAt,
@@ -56,7 +61,7 @@ export const create = mutation({
         : args.sourceType === "pdf"
           ? "PDF"
           : "Chat";
-    await ctx.db.insert("messages", {
+    const noteId = await ctx.db.insert("messages", {
       chatId,
       parentMessageId: undefined,
       role: "note",
@@ -66,10 +71,24 @@ export const create = mutation({
       depth: 0,
     });
     
+    // Optionally create first QUESTION (user message)
+    let firstUserMessageId: string | undefined;
+    if (args.firstQuestion && args.firstQuestion.trim()) {
+      firstUserMessageId = await ctx.db.insert("messages", {
+        chatId,
+        parentMessageId: noteId,
+        role: "user",
+        content: args.firstQuestion,
+        createdBy: args.userId,
+        createdAt: createdAt + 1, // Ensure it comes after the note
+        depth: 1,
+      });
+    }
+    
     // Update the dive's updatedAt timestamp
     await ctx.db.patch(args.diveId, { updatedAt: createdAt });
     
-    return { conceptId, chatId };
+    return { conceptId, chatId, firstUserMessageId };
   },
 });
 

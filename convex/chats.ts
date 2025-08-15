@@ -26,6 +26,22 @@ export const listByDive = query({
   },
 });
 
+export const listByAnchor = query({
+  args: {
+    anchorType: v.union(v.literal("document"), v.literal("concept")),
+    anchorId: v.union(v.id("documents"), v.id("concepts")),
+  },
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("chats")
+      .withIndex("by_anchor", (q) =>
+        q.eq("anchorType", args.anchorType).eq("anchorId", args.anchorId)
+      )
+      .order("desc")
+      .collect();
+  },
+});
+
 export const create = mutation({
   args: {
     diveId: v.id("dives"),
@@ -36,10 +52,47 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const createdAt = Date.now();
     
-    const chatId = await ctx.db.insert("chats", {
+    // For backwards compatibility, if conceptId is provided, set anchorType/anchorId
+    const chatData: any = {
       diveId: args.diveId,
       conceptId: args.conceptId,
       title: args.title,
+      createdBy: args.userId,
+      createdAt,
+      updatedAt: createdAt,
+      anchorType: args.conceptId ? "concept" : "free",
+    };
+    
+    if (args.conceptId) {
+      chatData.anchorId = args.conceptId;
+    }
+    
+    const chatId = await ctx.db.insert("chats", chatData);
+    
+    return chatId;
+  },
+});
+
+export const createForDocument = mutation({
+  args: {
+    documentId: v.id("documents"),
+    diveId: v.id("dives"),
+    title: v.optional(v.string()),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const createdAt = Date.now();
+    
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+    
+    const chatId = await ctx.db.insert("chats", {
+      diveId: args.diveId,
+      anchorType: "document",
+      anchorId: args.documentId,
+      title: args.title || document.title,
       createdBy: args.userId,
       createdAt,
       updatedAt: createdAt,

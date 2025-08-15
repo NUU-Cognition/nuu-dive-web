@@ -15,6 +15,7 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 
 type ConceptDoc = Doc<"concepts">;
+type DocumentDoc = Doc<"documents">;
 
 interface Concept {
   _id: string;
@@ -22,29 +23,51 @@ interface Concept {
   snippet: string;
   sourceType: "url" | "pdf" | "chat";
   sourceUrl?: string;
+  documentId?: string;
   createdAt: number;
   // kept for compatibility with existing components; not used functionally
   chatId?: string;
   diveId: string;
 }
 
+interface Document {
+  _id: string;
+  title: string;
+  kind: "url" | "pdf";
+  url?: string;
+  responseCount?: number;
+  conceptCount?: number;
+  createdAt: number;
+  diveId: string;
+}
+
 interface WorkspaceContextType {
   // Data
   concepts: Concept[];
+  documents: Document[];
   // Mutations
   addConcept: (args: {
     title: string;
     snippet: string;
     sourceType: "url" | "pdf" | "chat";
     sourceUrl?: string;
-  }) => Promise<{ conceptId: string; chatId: string }>;
+    documentId?: string;
+    firstQuestion: string;
+  }) => Promise<{ conceptId: string; chatId: string; firstUserMessageId: string }>;
+  addDocument: (args: {
+    kind: "url" | "pdf";
+    title: string;
+    url?: string;
+  }) => Promise<string>;
   updateConcept: (id: string, updates: Partial<Concept>) => void; // (no-op for now)
 
   // Selection
   selectedConceptId: string | null;
   selectedChatId: string | null;
+  selectedDocumentId: string | null;
   setSelectedConcept: (conceptId: string | null) => void;
   setSelectedChat: (chatId: string | null) => void;
+  setSelectedDocument: (documentId: string | null) => void;
 
   // Useful context
   diveId: string;
@@ -88,8 +111,15 @@ export function WorkspaceProvider({
     };
   }, [session?.user?.email, session?.user?.name, getOrCreateUser]);
 
-  // Concepts for this dive (skip for mock dive IDs)
+  // Documents and Concepts for this dive (skip for mock dive IDs)
   const isMockDiveId = diveId === "1" || diveId === "2";
+  
+  const convexDocuments =
+    useQuery(
+      api.documents.listByDive,
+      !isMockDiveId && diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
+    ) || [];
+    
   const convexConcepts =
     useQuery(
       api.concepts.listByDive,
@@ -97,6 +127,21 @@ export function WorkspaceProvider({
     ) || [];
 
   // Map Convex docs to the interface used by components
+  const documents: Document[] = useMemo(
+    () =>
+      convexDocuments.map((d: DocumentDoc & { responseCount?: number; conceptCount?: number }) => ({
+        _id: d._id as string,
+        title: d.title,
+        kind: d.kind as Document["kind"],
+        url: d.url ?? undefined,
+        responseCount: d.responseCount ?? 0,
+        conceptCount: d.conceptCount ?? 0,
+        createdAt: d.createdAt,
+        diveId: d.diveId as unknown as string,
+      })),
+    [convexDocuments]
+  );
+  
   const concepts: Concept[] = useMemo(
     () =>
       convexConcepts.map((c: ConceptDoc) => ({
@@ -105,6 +150,7 @@ export function WorkspaceProvider({
         snippet: c.snippet,
         sourceType: c.sourceType as Concept["sourceType"],
         sourceUrl: c.sourceUrl ?? undefined,
+        documentId: (c as any).documentId ?? undefined,
         createdAt: c.createdAt,
         diveId: c.diveId as unknown as string,
         chatId: undefined, // resolved on demand via concepts.get
@@ -117,6 +163,7 @@ export function WorkspaceProvider({
     null
   );
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
 
   // When the selected concept changes, resolve its chat from Convex
   const selectedConceptDetail = useQuery(
@@ -127,8 +174,11 @@ export function WorkspaceProvider({
   );
   useEffect(() => {
     const chatId = (selectedConceptDetail as any)?.chat?._id as string | undefined;
-    if (chatId) setSelectedChatId(chatId);
-  }, [(selectedConceptDetail as any)?.chat?._id]);
+    if (chatId && chatId !== selectedChatId) {
+      setSelectedChatId(chatId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(selectedConceptDetail as any)?.chat?._id, selectedChatId]);
 
   // Default selection: first concept
   useEffect(() => {
@@ -139,6 +189,7 @@ export function WorkspaceProvider({
 
   // Mutations
   const createConcept = useMutation(api.concepts.create);
+  const createDocument = useMutation(api.documents.create);
 
   const addConcept = useCallback(
     async ({
@@ -146,11 +197,15 @@ export function WorkspaceProvider({
       snippet,
       sourceType,
       sourceUrl,
+      documentId,
+      firstQuestion,
     }: {
       title: string;
       snippet: string;
       sourceType: "url" | "pdf" | "chat";
       sourceUrl?: string;
+      documentId?: string;
+      firstQuestion: string;
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
@@ -165,15 +220,49 @@ export function WorkspaceProvider({
         snippet,
         sourceType,
         sourceUrl,
+        documentId: documentId as Id<"documents"> | undefined,
+        firstQuestion,
         userId: currentUserId as unknown as Id<"users">,
       });
       const conceptId = (res as any).conceptId as string;
       const chatId = (res as any).chatId as string;
+      const firstUserMessageId = (res as any).firstUserMessageId as string;
       setSelectedConceptId(conceptId);
       setSelectedChatId(chatId);
-      return { conceptId, chatId };
+      return { conceptId, chatId, firstUserMessageId };
     },
     [createConcept, currentUserId, diveId]
+  );
+  
+  const addDocument = useCallback(
+    async ({
+      kind,
+      title,
+      url,
+    }: {
+      kind: "url" | "pdf";
+      title: string;
+      url?: string;
+    }) => {
+      if (!currentUserId) throw new Error("User not initialized yet");
+      
+      // Don't allow creating documents in mock dives
+      if (diveId === "1" || diveId === "2") {
+        throw new Error("Cannot create documents in demo dives. Please create a new dive first.");
+      }
+      
+      const documentId = await createDocument({
+        diveId: diveId as unknown as Id<"dives">,
+        kind,
+        title,
+        url,
+        userId: currentUserId as unknown as Id<"users">,
+      });
+      
+      setSelectedDocumentId(documentId as string);
+      return documentId as string;
+    },
+    [createDocument, currentUserId, diveId]
   );
 
   // Not used now (kept to avoid refactors)
@@ -183,22 +272,32 @@ export function WorkspaceProvider({
 
   const setSelectedConcept = useCallback((conceptId: string | null) => {
     setSelectedConceptId(conceptId);
+    setSelectedDocumentId(null);
   }, []);
 
   const setSelectedChat = useCallback((chatId: string | null) => {
     setSelectedChatId(chatId);
+  }, []);
+  
+  const setSelectedDocument = useCallback((documentId: string | null) => {
+    setSelectedDocumentId(documentId);
+    setSelectedConceptId(null);
   }, []);
 
   return (
     <WorkspaceContext.Provider
       value={{
         concepts,
+        documents,
         addConcept,
+        addDocument,
         updateConcept,
         selectedConceptId,
         selectedChatId,
+        selectedDocumentId,
         setSelectedConcept,
         setSelectedChat,
+        setSelectedDocument,
         diveId,
         currentUserId,
       }}

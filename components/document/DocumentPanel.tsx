@@ -1,0 +1,206 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { X, Send, FileText, Link2, ExternalLink } from "lucide-react";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { useStreamChat } from "@/hooks/useStreamChat";
+
+interface DocumentPanelProps {
+  documentId: string;
+  onClose: () => void;
+}
+
+export default function DocumentPanel({ documentId, onClose }: DocumentPanelProps) {
+  const { currentUserId } = useWorkspace();
+  const [question, setQuestion] = useState("");
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState("");
+  const [pendingParentId, setPendingParentId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  
+  // Get document details
+  const document = useQuery(
+    api.documents.get,
+    { documentId: documentId as Id<"documents"> }
+  );
+  
+  // Get existing chats for this document
+  const documentChats = useQuery(
+    api.chats.listByAnchor,
+    { anchorType: "document" as const, anchorId: documentId as Id<"documents"> }
+  );
+  
+  // Mutations
+  const createChatForDocument = useMutation(api.chats.createForDocument);
+  const createUserMessage = useMutation(api.messages.createUser);
+  const createAssistantMessage = useMutation(api.messages.createAssistant);
+  
+  // Streaming hook
+  const { sendMessage, isStreaming } = useStreamChat({
+    onToken: (token) => {
+      setStreamingMessage((prev) => prev + token);
+    },
+    onComplete: async (fullText) => {
+      // Persist assistant reply under the user message we just created
+      if (activeChatId && pendingParentId && currentUserId) {
+        await createAssistantMessage({
+          chatId: activeChatId as Id<"chats">,
+          parentMessageId: pendingParentId as Id<"messages">,
+          content: fullText,
+          tokenCount: fullText.trim().split(/\s+/).length,
+          userId: currentUserId as Id<"users">,
+        });
+      }
+      setStreamingMessage("");
+      setQuestion("");
+      setIsCreatingChat(false);
+      setPendingParentId(null);
+    },
+    onError: (error) => {
+      console.error("Stream error:", error);
+      setStreamingMessage("");
+      setIsCreatingChat(false);
+    },
+  });
+  
+  const handleAsk = async () => {
+    if (!question.trim() || !currentUserId || isStreaming) return;
+    
+    setIsCreatingChat(true);
+    
+    try {
+      let chatId = documentChats?.[0]?._id;
+      
+      // Create chat if it doesn't exist
+      if (!chatId) {
+        chatId = await createChatForDocument({
+          documentId: documentId as Id<"documents">,
+          diveId: document?.diveId as Id<"dives">,
+          title: document?.title,
+          userId: currentUserId as Id<"users">,
+        });
+      }
+      setActiveChatId(chatId as string);
+      
+      // Create user message
+      const userMessageId = await createUserMessage({
+        chatId: chatId as Id<"chats">,
+        content: question,
+        userId: currentUserId as Id<"users">,
+      });
+      setPendingParentId(userMessageId as string);
+      
+      // Stream response
+      await sendMessage({
+        chatId: chatId as string,
+        parentMessageId: userMessageId as string,
+        userText: question,
+        messages: [], // (Context assembly works without messages for now)
+        inclusionOverride: undefined,
+        attachments: [],
+      });
+    } catch (error) {
+      console.error("Failed to ask document:", error);
+      setIsCreatingChat(false);
+    }
+  };
+  
+  if (!document) {
+    return (
+      <div className="w-[400px] border-l bg-background h-full flex items-center justify-center">
+        <div className="animate-pulse">Loading document...</div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="w-[400px] border-l bg-background h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex items-center gap-2">
+          {document.kind === "url" ? (
+            <Link2 className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <FileText className="h-5 w-5 text-muted-foreground" />
+          )}
+          <h2 className="font-semibold text-sm truncate flex-1" title={document.title}>
+            {document.title}
+          </h2>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      
+      {/* Document info */}
+      <div className="px-4 py-3 border-b">
+        {document.url && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Source:</span>
+            <a
+              href={document.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              {new URL(document.url).hostname}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        )}
+        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+          <span>{document.responseCount || 0} responses</span>
+          <span>{document.conceptCount || 0} concepts</span>
+        </div>
+      </div>
+      
+      {/* Existing responses preview */}
+      {documentChats && documentChats.length > 0 && (
+        <div className="flex-1 overflow-y-auto p-4">
+          <p className="text-xs text-muted-foreground mb-2">Previous questions:</p>
+          {/* TODO: Show message tree here */}
+        </div>
+      )}
+      
+      {/* Streaming response */}
+      {streamingMessage && (
+        <div className="px-4 py-3 border-t bg-muted/50">
+          <div className="text-sm whitespace-pre-wrap">{streamingMessage}</div>
+        </div>
+      )}
+      
+      {/* Ask input */}
+      <div className="border-t p-4 mt-auto">
+        <div className="space-y-3">
+          <label className="text-sm font-medium">Ask this document...</label>
+          <Textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="What would you like to know about this document?"
+            className="min-h-[80px] resize-none"
+            disabled={isStreaming || isCreatingChat}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleAsk();
+              }
+            }}
+          />
+          <Button
+            onClick={handleAsk}
+            disabled={!question.trim() || isStreaming || isCreatingChat || !currentUserId}
+            className="w-full"
+          >
+            <Send className="mr-2 h-4 w-4" />
+            {isStreaming ? "Generating..." : "Ask"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

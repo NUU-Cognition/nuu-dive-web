@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 interface StreamChatOptions {
   onToken?: (token: string) => void;
@@ -9,6 +9,8 @@ interface StreamChatOptions {
 export function useStreamChat(options: StreamChatOptions = {}) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState("");
+  const controllerRef = useRef<AbortController | null>(null);
+  const inFlightKeyRef = useRef<string | null>(null);
 
   const sendMessage = useCallback(
     async ({
@@ -29,6 +31,16 @@ export function useStreamChat(options: StreamChatOptions = {}) {
       };
       attachments?: any[];
     }) => {
+      // Build idempotency key for this request
+      const key = `${chatId}:${parentMessageId || "root"}:${userText}`;
+      // If the exact same request is already in-flight, ignore
+      if (isStreaming && inFlightKeyRef.current === key) return;
+
+      // Cancel any previous stream
+      controllerRef.current?.abort();
+      controllerRef.current = new AbortController();
+      inFlightKeyRef.current = key;
+
       setIsStreaming(true);
       setStreamedText("");
 
@@ -46,6 +58,7 @@ export function useStreamChat(options: StreamChatOptions = {}) {
             inclusionOverride,
             attachments,
           }),
+          signal: controllerRef.current.signal,
         });
 
         if (!response.ok) {
@@ -72,10 +85,8 @@ export function useStreamChat(options: StreamChatOptions = {}) {
             if (line.startsWith("data: ")) {
               const data = line.slice(6);
               
-              if (data === "[DONE]") {
-                setIsStreaming(false);
-                return;
-              }
+              // We let the finally block clean up isStreaming
+              if (data === "[DONE]") break;
 
               try {
                 const parsed = JSON.parse(data);
@@ -101,19 +112,34 @@ export function useStreamChat(options: StreamChatOptions = {}) {
           }
         }
       } catch (error) {
-        console.error("Stream chat error:", error);
-        options.onError?.(
-          error instanceof Error ? error.message : "Unknown error"
-        );
+        if ((error as any)?.name !== "AbortError") {
+          console.error("Stream chat error:", error);
+          options.onError?.(
+            error instanceof Error ? error.message : "Unknown error"
+          );
+        }
       } finally {
         setIsStreaming(false);
+        controllerRef.current = null;
+        inFlightKeyRef.current = null;
       }
     },
-    [options]
+    [options, isStreaming]
   );
+
+  const cancel = useCallback(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    inFlightKeyRef.current = null;
+    setIsStreaming(false);
+  }, []);
+
+  // Auto-cancel on unmount
+  useEffect(() => cancel, [cancel]);
 
   return {
     sendMessage,
+    cancel,
     isStreaming,
     streamedText,
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Send, GitBranch, Paperclip, Info, Plus } from "lucide-react";
@@ -40,7 +40,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Workspace context for user & dive metadata
-  const { currentUserId, diveId } = useWorkspace();
+  const { currentUserId, diveId, setSelectedChat } = useWorkspace();
 
   // Use Convex chat hook for real-time sync
   const {
@@ -59,6 +59,9 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   // Track the parent message id for the assistant's reply to avoid races
   const [pendingParentId, setPendingParentId] = useState<string | null>(null);
 
+  // Guard: ensure we only trigger a stream once per user message id
+  const sentUserIdsRef = useRef<Set<string>>(new Set());
+
   // Streaming hook for LLM responses
   const { sendMessage, isStreaming } = useStreamChat({
     onToken: (token) => {
@@ -73,6 +76,8 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
           parentId,
           fullText.split(" ").length
         );
+        // Trigger re-render of canvas by updating selected chat
+        setSelectedChat(chatId);
       } else {
         console.warn("No parent message found for assistant reply.");
       }
@@ -90,6 +95,39 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingMessage]);
 
+  // Reset per-chat guards
+  useEffect(() => {
+    sentUserIdsRef.current = new Set();
+    setPendingParentId(null);
+    setStreamingMessage("");
+  }, [chatId]);
+
+  // Helper: find "orphan" user messages (no assistant child)
+  const orphanUsers = useMemo(() => {
+    if (!messages?.length) return [];
+    const assistantParents = new Set(
+      messages.filter((m) => m.role === "assistant" && m.parentMessageId).map((m) => m.parentMessageId as string)
+    );
+    return messages.filter((m) => m.role === "user" && !assistantParents.has(m._id));
+  }, [messages]);
+
+  // 🔁 Auto-stream **exactly once** for the latest orphan user message
+  useEffect(() => {
+    if (isStreaming || orphanUsers.length === 0) return;
+    const target = orphanUsers[orphanUsers.length - 1];
+    if (sentUserIdsRef.current.has(target._id)) return;
+    sentUserIdsRef.current.add(target._id);
+    setPendingParentId(target._id);
+    void sendMessage({
+      chatId,
+      parentMessageId: target._id,
+      userText: target.content,
+      messages,
+      inclusionOverride: undefined,
+      attachments: [],
+    });
+  }, [orphanUsers, isStreaming, chatId, sendMessage, messages]);
+
   const handleSend = async () => {
     if (!inputValue.trim() || isStreaming) return;
 
@@ -97,6 +135,8 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     // Create user message in Convex
     const newUserMessage = await createUserMessage(inputValue, parentMessage?._id);
     setPendingParentId(newUserMessage._id);
+    // Mark as already scheduled to avoid auto-effect racing this one
+    sentUserIdsRef.current.add(newUserMessage._id);
     
     setInputValue("");
 
@@ -122,6 +162,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     // Create branch in Convex
     const branchMessage = await createBranch(branchFromId, branchInput);
     setPendingParentId(branchMessage._id);
+    sentUserIdsRef.current.add(branchMessage._id);
     
     setBranchInput("");
     setBranchDialogOpen(false);

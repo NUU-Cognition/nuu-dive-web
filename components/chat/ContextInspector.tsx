@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,11 @@ export default function ContextInspector({
   const [includedMessageIds, setIncludedMessageIds] = useState<Set<string>>(
     new Set(messages.map((m) => m._id))
   );
+
+  // Keep checkboxes in sync when messages change or dialog opens
+  useEffect(() => {
+    setIncludedMessageIds(new Set(messages.map((m) => m._id)));
+  }, [messages, open]);
 
   const toggleMessageInclusion = (messageId: string) => {
     const newSet = new Set(includedMessageIds);

@@ -34,26 +34,38 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
   const [newConceptTitle, setNewConceptTitle] = useState("");
   const [newConceptSnippet, setNewConceptSnippet] = useState("");
   const [newConceptUrl, setNewConceptUrl] = useState("");
+  const [firstQuestion, setFirstQuestion] = useState("");
 
   const filteredConcepts = concepts.filter((concept) =>
     concept.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreateConcept = async () => {
-    if (!newConceptTitle.trim() || !newConceptSnippet.trim()) return;
+    if (!newConceptTitle.trim() || !newConceptSnippet.trim() || !firstQuestion.trim()) return;
     
-    const { conceptId } = await addConcept({
-      title: newConceptTitle,
-      snippet: newConceptSnippet,
-      sourceType: newConceptUrl ? "url" : "chat",
-      sourceUrl: newConceptUrl || undefined,
-    });
-    setSelectedConcept(conceptId);
-    
-    setNewConceptTitle("");
-    setNewConceptSnippet("");
-    setNewConceptUrl("");
-    setCreateDialogOpen(false);
+    try {
+      const { conceptId, chatId, firstUserMessageId } = await addConcept({
+        title: newConceptTitle,
+        snippet: newConceptSnippet,
+        sourceType: newConceptUrl ? "url" : "chat",
+        sourceUrl: newConceptUrl || undefined,
+        firstQuestion: firstQuestion,
+      });
+      
+      setSelectedConcept(conceptId);
+      
+      // TODO: Trigger streaming for the first response
+      // This would call /api/chat/stream with the firstUserMessageId
+      console.log("Created concept with first question:", { conceptId, chatId, firstUserMessageId });
+      
+      setNewConceptTitle("");
+      setNewConceptSnippet("");
+      setNewConceptUrl("");
+      setFirstQuestion("");
+      setCreateDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to create concept:", error);
+    }
   };
 
   return (
@@ -70,14 +82,14 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create Concept</DialogTitle>
+                <DialogTitle>Create Concept & Ask</DialogTitle>
                 <DialogDescription>
-                  Capture a key idea or highlight from a source
+                  Capture a key idea and ask your first question about it
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Title</label>
+                  <label className="text-sm font-medium">Title *</label>
                   <Input
                     placeholder="e.g., Quantum Entanglement"
                     value={newConceptTitle}
@@ -85,13 +97,26 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Snippet</label>
+                  <label className="text-sm font-medium">Snippet *</label>
                   <Textarea
                     placeholder="The key text or idea you want to explore..."
                     value={newConceptSnippet}
                     onChange={(e) => setNewConceptSnippet(e.target.value)}
-                    rows={4}
+                    rows={3}
                   />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">First Question *</label>
+                  <Textarea
+                    placeholder="What would you like to know about this concept?"
+                    value={firstQuestion}
+                    onChange={(e) => setFirstQuestion(e.target.value)}
+                    rows={2}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This will start a conversation about the concept
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Source URL (optional)</label>
@@ -106,7 +131,12 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
                 <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateConcept}>Create</Button>
+                <Button 
+                  onClick={handleCreateConcept}
+                  disabled={!newConceptTitle.trim() || !newConceptSnippet.trim() || !firstQuestion.trim()}
+                >
+                  Create & Ask
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

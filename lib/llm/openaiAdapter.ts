@@ -1,13 +1,12 @@
 import { LLMAdapter, LLMStream, LLMMessage } from "./provider";
-import { parseEventSource } from "./utils";
 
 export const openaiAdapter: LLMAdapter = {
-  async *stream({ 
-    system, 
-    contextMessages, 
-    user, 
+  async *stream({
+    system,
+    contextMessages,
+    user,
     temperature = 0.7,
-    maxTokens = 2000 
+    maxTokens = 4096
   }) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -15,11 +14,11 @@ export const openaiAdapter: LLMAdapter = {
     }
 
     const messages: LLMMessage[] = [];
-    
+
     if (system) {
       messages.push({ role: "system", content: system });
     }
-    
+
     messages.push(...contextMessages);
     messages.push({ role: "user", content: user });
 
@@ -30,7 +29,7 @@ export const openaiAdapter: LLMAdapter = {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4-turbo-preview",
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
         messages,
         temperature,
         max_tokens: maxTokens,
@@ -74,7 +73,7 @@ export const openaiAdapter: LLMAdapter = {
             if (delta?.content) {
               fullText += delta.content;
               tokenCount++;
-              yield { 
+              yield {
                 token: delta.content,
                 done: false,
               };

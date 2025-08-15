@@ -43,12 +43,29 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
+    
+    // Optional keepalive ping (some proxies close silent SSE)
+    const keepAlive = setInterval(() => {
+      try {
+        writer.write(encoder.encode(": keepalive\n\n"));
+      } catch {}
+    }, 15000);
 
     // Start streaming in the background
     (async () => {
       try {
         let fullText = "";
-        let isFirst = true;
+        const startId = `temp_${Date.now()}`;
+
+        // Announce stream start before any tokens
+        await writer.write(
+          encoder.encode(
+            encodeSSE({
+              type: "start",
+              messageId: startId,
+            })
+          )
+        );
 
         // Stream tokens from LLM
         for await (const chunk of llm.stream({
@@ -67,19 +84,6 @@ export async function POST(req: NextRequest) {
           );
 
           fullText += chunk.token;
-
-          // Send periodic progress updates
-          if (isFirst) {
-            isFirst = false;
-            await writer.write(
-              encoder.encode(
-                encodeSSE({
-                  type: "start",
-                  messageId: `temp_${Date.now()}`,
-                })
-              )
-            );
-          }
         }
 
         // Add citations if available
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
               type: "complete",
               content: fullText,
               messageId: `msg_${Date.now()}`,
-              tokenCount: fullText.split(" ").length,
+              tokenCount: (fullText.trim().match(/\S+/g) || []).length,
             })
           )
         );
@@ -114,6 +118,7 @@ export async function POST(req: NextRequest) {
           )
         );
       } finally {
+        clearInterval(keepAlive);
         await writer.close();
       }
     })();

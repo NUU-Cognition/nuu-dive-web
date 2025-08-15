@@ -185,3 +185,84 @@ export const softDelete = mutation({
     return { success: true };
   },
 });
+
+export const responseGraph = query({
+  args: { 
+    chatId: v.id("chats") 
+  },
+  handler: async (ctx, { chatId }) => {
+    const chat = await ctx.db.get(chatId);
+    if (!chat) throw new Error("Chat not found");
+
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+      .order("asc")
+      .collect();
+
+    // Index by id
+    const byId = new Map(messages.map(m => [m._id, m]));
+
+    // Helper: find nearest ancestor assistant
+    const nearestAssistant = (m: any): any | null => {
+      let cur = m;
+      while (cur?.parentMessageId) {
+        const p = byId.get(cur.parentMessageId);
+        if (!p) break;
+        if (p.role === "assistant") return p;
+        cur = p;
+      }
+      return null;
+    };
+
+    const nodes: any[] = [];
+    const edges: any[] = [];
+
+    // Anchor node (virtual) so the client can draw an edge from root
+    // Handle legacy chats: if no anchorType but has conceptId, it's a concept anchor
+    let anchorType = chat.anchorType || "free";
+    let anchorId = chat.anchorId;
+    
+    if (!chat.anchorType && chat.conceptId) {
+      anchorType = "concept";
+      anchorId = chat.conceptId;
+    }
+    
+    const anchor = { 
+      type: anchorType, 
+      id: anchorId,
+      chatId 
+    };
+
+    for (const m of messages) {
+      if (m.role !== "assistant" || m.deletedAt) continue; // only responses are nodes
+      
+      // Find the user question immediately above this assistant
+      const user = m.parentMessageId ? byId.get(m.parentMessageId) : null;
+      const label = user?.role === "user" 
+        ? (user.content.length > 90 ? user.content.substring(0, 87) + "..." : user.content)
+        : "(no question)";
+
+      const parentAssistant = user ? nearestAssistant(user) : null;
+      const parent = parentAssistant 
+        ? { type: "response", id: parentAssistant._id }
+        : anchor;
+
+      nodes.push({
+        type: "response",
+        id: m._id,
+        content: m.content, // Include for tooltips
+        createdAt: m.createdAt,
+        tokenCount: m.tokenCount,
+      });
+
+      edges.push({
+        from: parent,
+        to: { type: "response", id: m._id },
+        label,
+      });
+    }
+
+    return { anchor, nodes, edges };
+  },
+});

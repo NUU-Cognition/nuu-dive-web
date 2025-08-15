@@ -5,11 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { GitBranch, Plus, ChevronLeft, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
 import Link from "next/link";
 import ConceptsList from "@/components/canvas/ConceptsList";
 import ChatPanelV2 from "@/components/chat/ChatPanelV2";
+import DocumentPanel from "@/components/document/DocumentPanel";
 import CanvasView from "@/components/canvas/CanvasView";
 import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
 
@@ -19,7 +21,7 @@ function DiveWorkspaceContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
-  const { selectedConceptId, selectedChatId, setSelectedChat } = useWorkspace();
+  const { selectedConceptId, selectedChatId, selectedDocumentId, setSelectedChat, setSelectedDocument } = useWorkspace();
 
   // Get dive details from Convex
   const dive = useQuery(
@@ -117,8 +119,13 @@ function DiveWorkspaceContent() {
               <CanvasView diveId={diveId} />
             </div>
 
-            {/* Chat Panel */}
-            {selectedChatId ? (
+            {/* Right Panel - Document or Chat */}
+            {selectedDocumentId ? (
+              <DocumentPanel
+                documentId={selectedDocumentId}
+                onClose={() => setSelectedDocument(null)}
+              />
+            ) : selectedChatId ? (
               <div className="w-[600px] border-l flex h-full">
                 <ChatPanelV2
                   chatId={selectedChatId}
@@ -129,7 +136,7 @@ function DiveWorkspaceContent() {
             ) : (
               <div className="w-[600px] border-l flex items-center justify-center">
                 <div className="text-center text-muted-foreground">
-                  <p className="text-sm">Select a concept to start chatting</p>
+                  <p className="text-sm">Select a document or concept to start</p>
                 </div>
               </div>
             )}
