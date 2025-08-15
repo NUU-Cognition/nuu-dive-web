@@ -7,9 +7,10 @@ import { encodeSSE } from "@/lib/llm/utils";
 
 export async function POST(req: NextRequest) {
   try {
-    // Check authentication
+    // Check authentication (allow bypass in dev)
     const session = await getServerSession(authOptions);
-    if (!session) {
+    const allowDevNoAuth = process.env.ALLOW_DEV_NO_AUTH === "1";
+    if (!session && !allowDevNoAuth) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 

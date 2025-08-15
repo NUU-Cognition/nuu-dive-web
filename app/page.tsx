@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, GitBranch, FileText } from "lucide-react";
@@ -9,12 +9,13 @@ import Link from "next/link";
 
 export default function HomePage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
     if (status === "authenticated") {
-      redirect("/d");
+      router.replace("/d");
     }
-  }, [status]);
+  }, [status, router]);
 
   if (status === "loading") {
     return (

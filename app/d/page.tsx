@@ -1,9 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,13 +21,14 @@ import { formatDistanceToNow } from "date-fns";
 
 export default function DivesListPage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newDiveTitle, setNewDiveTitle] = useState("");
   const [newDiveDescription, setNewDiveDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Mock data for now - will be replaced with real Convex queries
-  const mockDives = [
+  // Local state for dives - will be replaced with real Convex queries later
+  const [dives, setDives] = useState([
     {
       _id: "1",
       title: "Quantum Computing Research",
@@ -46,13 +45,13 @@ export default function DivesListPage() {
       updatedAt: Date.now() - 7200000,
       conceptCount: 8,
     },
-  ];
+  ]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      redirect("/auth/signin");
+      router.replace("/auth/signin");
     }
-  }, [status]);
+  }, [status, router]);
 
   if (status === "loading") {
     return (
@@ -65,15 +64,23 @@ export default function DivesListPage() {
   const handleCreateDive = async () => {
     if (!newDiveTitle.trim()) return;
     
-    // TODO: Implement actual Convex mutation
-    console.log("Creating dive:", { title: newDiveTitle, description: newDiveDescription });
+    const now = Date.now();
+    const newDive = {
+      _id: String(now),
+      title: newDiveTitle.trim(),
+      description: newDiveDescription.trim(),
+      createdAt: now,
+      updatedAt: now,
+      conceptCount: 0,
+    };
+    setDives((prev) => [newDive, ...prev]);
     
     setNewDiveTitle("");
     setNewDiveDescription("");
     setCreateDialogOpen(false);
   };
 
-  const filteredDives = mockDives.filter((dive) =>
+  const filteredDives = dives.filter((dive) =>
     dive.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 

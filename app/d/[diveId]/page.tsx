@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { GitBranch, Plus, ChevronLeft, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
 import Link from "next/link";
@@ -16,11 +15,14 @@ function DiveWorkspaceContent() {
   const params = useParams();
   const diveId = params.diveId as string;
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
 
-  if (status === "unauthenticated") {
-    redirect("/auth/signin");
-  }
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/auth/signin");
+    }
+  }, [status, router]);
 
   if (status === "loading") {
     return (
