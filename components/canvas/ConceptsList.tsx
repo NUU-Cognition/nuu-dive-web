@@ -15,58 +15,41 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 interface ConceptsListProps {
   diveId: string;
-  selectedConceptId: string | null;
-  onSelectConcept: (conceptId: string, chatId: string) => void;
 }
 
-export default function ConceptsList({
-  diveId,
-  selectedConceptId,
-  onSelectConcept,
-}: ConceptsListProps) {
+export default function ConceptsList({ diveId }: ConceptsListProps) {
+  const { 
+    concepts, 
+    addConcept, 
+    selectedConceptId, 
+    setSelectedConcept 
+  } = useWorkspace();
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newConceptTitle, setNewConceptTitle] = useState("");
   const [newConceptSnippet, setNewConceptSnippet] = useState("");
   const [newConceptUrl, setNewConceptUrl] = useState("");
 
-  // Mock concepts data
-  const mockConcepts = [
-    {
-      _id: "c1",
-      title: "Quantum Entanglement",
-      snippet: "When two particles become entangled, the quantum state of each particle cannot be described independently...",
-      sourceType: "url" as const,
-      sourceUrl: "https://example.com/quantum",
-      createdAt: Date.now() - 3600000,
-      chatId: "chat1",
-    },
-    {
-      _id: "c2",
-      title: "Superposition Principle",
-      snippet: "A quantum system can exist in multiple states simultaneously until it is measured...",
-      sourceType: "pdf" as const,
-      sourceUrl: "paper.pdf",
-      createdAt: Date.now() - 7200000,
-      chatId: "chat2",
-    },
-  ];
-
-  const filteredConcepts = mockConcepts.filter((concept) =>
+  const filteredConcepts = concepts.filter((concept) =>
     concept.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreateConcept = () => {
     if (!newConceptTitle.trim() || !newConceptSnippet.trim()) return;
     
-    // TODO: Implement actual concept creation
-    console.log("Creating concept:", {
+    const chatId = `chat_${Date.now()}`;
+    addConcept({
       title: newConceptTitle,
       snippet: newConceptSnippet,
-      url: newConceptUrl,
+      sourceType: newConceptUrl ? "url" : "chat",
+      sourceUrl: newConceptUrl || undefined,
+      chatId,
+      diveId,
     });
     
     setNewConceptTitle("");
@@ -154,7 +137,7 @@ export default function ConceptsList({
             {filteredConcepts.map((concept) => (
               <button
                 key={concept._id}
-                onClick={() => onSelectConcept(concept._id, concept.chatId)}
+                onClick={() => setSelectedConcept(concept._id)}
                 className={`w-full rounded-lg p-3 text-left transition-colors hover:bg-accent ${
                   selectedConceptId === concept._id ? "bg-accent" : ""
                 }`}
@@ -163,8 +146,10 @@ export default function ConceptsList({
                   <div className="mt-0.5">
                     {concept.sourceType === "url" ? (
                       <Link2 className="h-4 w-4 text-muted-foreground" />
-                    ) : (
+                    ) : concept.sourceType === "pdf" ? (
                       <FileText className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Hash className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

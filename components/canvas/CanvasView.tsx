@@ -15,76 +15,58 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import ConceptNode from "./ConceptNode";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 interface CanvasViewProps {
   diveId: string;
-  selectedConceptId: string | null;
-  onSelectConcept: (conceptId: string, chatId: string) => void;
 }
 
 const nodeTypes = {
   concept: ConceptNode,
 };
 
-export default function CanvasView({
-  diveId,
-  selectedConceptId,
-  onSelectConcept,
-}: CanvasViewProps) {
-  // Mock data - in production this would come from Convex
-  const initialNodes: Node[] = [
-    {
-      id: "c1",
-      type: "concept",
-      position: { x: 250, y: 100 },
-      data: { 
-        title: "Quantum Entanglement",
-        snippet: "When two particles become entangled...",
-        sourceType: "url",
-        chatId: "chat1",
-        selected: selectedConceptId === "c1",
-      },
-    },
-    {
-      id: "c2",
-      type: "concept",
-      position: { x: 500, y: 200 },
-      data: { 
-        title: "Superposition Principle",
-        snippet: "A quantum system can exist in multiple states...",
-        sourceType: "pdf",
-        chatId: "chat2",
-        selected: selectedConceptId === "c2",
-      },
-    },
-  ];
+export default function CanvasView({ diveId }: CanvasViewProps) {
+  const { concepts, selectedConceptId, setSelectedConcept } = useWorkspace();
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  const initialEdges: Edge[] = [
-    {
-      id: "e1-2",
-      source: "c1",
-      target: "c2",
-      type: "smoothstep",
-      animated: true,
-      style: { stroke: "#94a3b8", strokeWidth: 1 },
-    },
-  ];
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-  // Update node selection state when selectedConceptId changes
+  // Update nodes when concepts change
   useEffect(() => {
-    setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          selected: node.id === selectedConceptId,
-        },
-      }))
-    );
-  }, [selectedConceptId, setNodes]);
+    const newNodes: Node[] = concepts.map((concept, index) => ({
+      id: concept._id,
+      type: "concept",
+      position: { 
+        x: 250 + (index % 3) * 250, 
+        y: 100 + Math.floor(index / 3) * 150 
+      },
+      data: {
+        title: concept.title,
+        snippet: concept.snippet,
+        sourceType: concept.sourceType,
+        chatId: concept.chatId,
+        selected: selectedConceptId === concept._id,
+      },
+    }));
+    setNodes(newNodes);
+  }, [concepts, selectedConceptId, setNodes]);
+
+  // Create edges between related concepts (for demo, connect sequential concepts)
+  useEffect(() => {
+    const newEdges: Edge[] = [];
+    for (let i = 0; i < concepts.length - 1; i++) {
+      if (i % 3 !== 2) { // Don't connect to next row
+        newEdges.push({
+          id: `e${concepts[i]._id}-${concepts[i + 1]._id}`,
+          source: concepts[i]._id,
+          target: concepts[i + 1]._id,
+          type: "smoothstep",
+          animated: false,
+          style: { stroke: "#94a3b8", strokeWidth: 1 },
+        });
+      }
+    }
+    setEdges(newEdges);
+  }, [concepts, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -93,9 +75,9 @@ export default function CanvasView({
 
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      onSelectConcept(node.id, node.data.chatId);
+      setSelectedConcept(node.id);
     },
-    [onSelectConcept]
+    [setSelectedConcept]
   );
 
   return (

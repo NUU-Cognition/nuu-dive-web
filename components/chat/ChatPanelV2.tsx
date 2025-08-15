@@ -8,7 +8,7 @@ import MessageItem from "./MessageItem";
 import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
 import { useStreamChat } from "@/hooks/useStreamChat";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useConvexChat } from "@/hooks/useConvexChat";
 import {
   Dialog,
   DialogContent,
@@ -20,19 +20,12 @@ import {
 import { Input } from "@/components/ui/input";
 
 interface ChatPanelProps {
-  diveId: string;
+  chatId: string;
+  conceptId: string | null;
+  onClose: () => void;
 }
 
-export default function ChatPanel({ diveId }: ChatPanelProps) {
-  const { 
-    selectedChatId, 
-    selectedConceptId,
-    chats, 
-    addMessage, 
-    addConcept,
-    setSelectedChat 
-  } = useWorkspace();
-  
+export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<string>("");
@@ -45,9 +38,14 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
   const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get current chat messages
-  const currentChat = selectedChatId ? chats.get(selectedChatId) : null;
-  const messages = currentChat?.messages || [];
+  // Use Convex chat hook for real-time sync
+  const {
+    messages,
+    createUserMessage,
+    createAssistantMessage,
+    createBranch,
+    createConcept,
+  } = useConvexChat({ chatId, conceptId });
 
   // Streaming hook for LLM responses
   const { sendMessage, isStreaming } = useStreamChat({
@@ -55,16 +53,13 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
       setStreamingMessage((prev) => prev + token);
     },
     onComplete: async (fullText, messageId) => {
-      if (!selectedChatId) return;
-      
-      const lastMessage = messages[messages.length - 1];
-      addMessage(selectedChatId, {
-        role: "assistant",
-        content: fullText,
-        parentMessageId: lastMessage?._id,
-        depth: (lastMessage?.depth || 0) + 1,
-      });
-      
+      // Save assistant message to Convex
+      const lastUserMessage = messages[messages.length - 1];
+      await createAssistantMessage(
+        fullText,
+        lastUserMessage._id,
+        fullText.split(" ").length
+      );
       setStreamingMessage("");
     },
     onError: (error) => {
@@ -78,23 +73,21 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
   }, [messages, streamingMessage]);
 
   const handleSend = async () => {
-    if (!inputValue.trim() || isStreaming || !selectedChatId) return;
+    if (!inputValue.trim() || isStreaming) return;
 
     const parentMessage = messages[messages.length - 1];
     
-    // Add user message
-    const newUserMessage = addMessage(selectedChatId, {
-      role: "user",
-      content: inputValue,
-      parentMessageId: parentMessage?._id,
-      depth: (parentMessage?.depth || 0) + 1,
-    });
+    // Create user message in Convex
+    const newUserMessage = await createUserMessage(
+      inputValue,
+      parentMessage?._id
+    );
     
     setInputValue("");
 
     // Send to streaming API
     await sendMessage({
-      chatId: selectedChatId,
+      chatId,
       parentMessageId: newUserMessage._id,
       userText: newUserMessage.content,
       messages: [...messages, newUserMessage],
@@ -109,18 +102,10 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
   };
 
   const handleCreateBranch = async () => {
-    if (!branchInput.trim() || !branchFromId || !selectedChatId) return;
+    if (!branchInput.trim() || !branchFromId) return;
 
-    const parentMessage = messages.find(m => m._id === branchFromId);
-    if (!parentMessage) return;
-
-    // Add branch message
-    const branchMessage = addMessage(selectedChatId, {
-      role: "user",
-      content: branchInput,
-      parentMessageId: branchFromId,
-      depth: parentMessage.depth + 1,
-    });
+    // Create branch in Convex
+    const branchMessage = await createBranch(branchFromId, branchInput);
     
     setBranchInput("");
     setBranchDialogOpen(false);
@@ -128,7 +113,7 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
 
     // Send branched message to streaming API
     await sendMessage({
-      chatId: selectedChatId,
+      chatId,
       parentMessageId: branchMessage._id,
       userText: branchMessage.content,
       messages: [...messages, branchMessage],
@@ -148,17 +133,14 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
     setExtractConceptDialog(true);
   };
 
-  const handleCreateConcept = () => {
+  const handleCreateConcept = async () => {
     if (!conceptTitle.trim() || !conceptSnippet.trim()) return;
 
-    const chatId = `chat_${Date.now()}`;
-    addConcept({
-      title: conceptTitle,
-      snippet: conceptSnippet,
-      sourceType: "chat",
-      chatId,
-      diveId,
-    });
+    await createConcept(
+      conceptTitle,
+      conceptSnippet,
+      selectedMessageForConcept?._id
+    );
 
     setExtractConceptDialog(false);
     setConceptTitle("");
@@ -211,18 +193,8 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
 
   const messageTree = buildMessageTree(messages);
 
-  if (!selectedChatId) {
-    return (
-      <div className="w-[600px] border-l flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <p className="text-sm">Select a concept to start chatting</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-[600px] border-l flex h-full flex-col">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
@@ -235,14 +207,14 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
         </div>
         <div className="flex items-center gap-2">
           <ExportButton
-            chatId={selectedChatId}
+            chatId={chatId}
             messages={messages}
             currentMessageId={messages[messages.length - 1]?._id}
           />
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setSelectedChat(null)}
+            onClick={onClose}
           >
             <X className="h-4 w-4" />
           </Button>
