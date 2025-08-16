@@ -41,7 +41,7 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
       />
       <Handle 
         type="target" 
-        position={Position.Right} 
+        position={Position.Left} 
         className="!bg-primary"
       />
 
@@ -106,7 +106,7 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
       />
       <Handle 
         type="source" 
-        position={Position.Left} 
+        position={Position.Right} 
         className="!bg-primary"
       />
     </div>

@@ -509,25 +509,56 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
     }
   });
 
+  // Simple approach: calculate the rightmost X position of any node in a subtree
+  const getRightmostX = (node: NodeWithLayout): number => {
+    let rightmost = node.position?.x || 0;
+    
+    // Check all descendants
+    const checkChildren = (n: NodeWithLayout) => {
+      if (n.position?.x && n.position.x > rightmost) {
+        rightmost = n.position.x;
+      }
+      n.children.forEach(checkChildren);
+    };
+    
+    node.children.forEach(checkChildren);
+    return rightmost;
+  };
+
   const positionNode = (node: NodeWithLayout, x = 0, y = 0) => {
     node.position = { x, y };
 
-    node.children.forEach((child: NodeWithLayout, index: number) => {
-      if (node.type === "documentNode") {
-        positionNode(child, x + 350 + (index * 300), y);
-      } else if (node.type === "responseNode") {
+    if (node.type === "documentNode") {
+      let currentX = x + 400; // Start concepts after document
+      node.children.forEach((child: NodeWithLayout) => {
+        positionNode(child, currentX, y);
+        // After positioning this child and all its descendants, 
+        // move to the right of the entire subtree
+        const rightmostX = getRightmostX(child);
+        currentX = rightmostX + 300; // Add spacing for next concept
+      });
+    } else if (node.type === "responseNode") {
+      node.children.forEach((child: NodeWithLayout, index: number) => {
         if (index === 0) {
-          positionNode(child, x, y + 120); // First response goes down
+          // First child goes down
+          positionNode(child, x, y + 120);
         } else {
-          positionNode(child, x + (index * 150), y + 120); // Others go right
+          // For siblings going right, find the rightmost position of all previous siblings
+          let rightmostX = x;
+          for (let i = 0; i < index; i++) {
+            const siblingRightmost = getRightmostX(node.children[i]);
+            rightmostX = Math.max(rightmostX, siblingRightmost);
+          }
+          // Position this child to the right of all previous siblings
+          positionNode(child, rightmostX + 150, y + 120);
         }
-      } else if (node.type === "conceptNode") {
-        const conceptWidth = 200;
-        const conceptCenter = x + (conceptWidth / 2) - 7;
-
+      });
+    } else if (node.type === "conceptNode") {
+      const conceptCenter = x + 94; // Center of concept node
+      node.children.forEach((child: NodeWithLayout) => {
         positionNode(child, conceptCenter, y + 150);
-      }
-    });
+      });
+    }
   };
 
   roots.forEach((root, index) => {
@@ -536,26 +567,10 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
 
   return nodes.map(node => {
     const positioned = nodeMap.get(node.id);
-    const nodeType = node.type;
-
-    let targetPos, sourcePos;
-
-    if (nodeType === "documentNode") {
-      targetPos = Position.Right;
-      sourcePos = Position.Left;  
-    } else if (nodeType === "conceptNode") {
-      targetPos = Position.Right;
-      sourcePos = Position.Left;
-    } else if (nodeType === "responseNode") {
-      targetPos = Position.Top;
-      sourcePos = Position.Bottom
-    }
-
+    
     return {
-      ...node, 
-      targetPosition: targetPos,
-      sourcePosition: sourcePos,
+      ...node,
       position: positioned?.position || { x: 0, y: 0 },
-    }
+    };
   });
 }

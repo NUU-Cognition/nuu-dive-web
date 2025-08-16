@@ -35,7 +35,7 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
       />
       <Handle 
         type="target" 
-        position={Position.Right} 
+        position={Position.Left} 
         className="!bg-transparent !border-0 !w-3 !h-3"
       />
 
@@ -93,7 +93,7 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
       />
       <Handle 
         type="source" 
-        position={Position.Left} 
+        position={Position.Right} 
         className="!bg-transparent !border-0 !w-3 !h-3"
       />
     </div>

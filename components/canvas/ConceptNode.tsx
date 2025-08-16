@@ -23,7 +23,7 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
       />
       <Handle 
         type="target" 
-        position={Position.Right} 
+        position={Position.Left} 
         className="!bg-primary"
       />
       <div
@@ -61,7 +61,7 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
       />
       <Handle 
         type="source" 
-        position={Position.Left} 
+        position={Position.Right} 
         className="!bg-primary"
       />
     </>
