@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConceptNoteEditor } from "@/components/concept/ConceptNoteEditor";
 
 interface ConceptsListProps {
   diveId: string;
@@ -26,11 +27,15 @@ export default function ConceptsList({}: ConceptsListProps) {
   const { 
     concepts, 
     addConcept, 
+    updateConcept,
     selectedConceptId, 
     setSelectedConcept,
     conceptsLoading,
     setSelectedChat,
-    setLeafForChat 
+    setLeafForChat,
+    editingConceptNoteId,
+    setEditingConceptNoteId,
+    openConceptNote
   } = useWorkspace();
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -188,9 +193,11 @@ export default function ConceptsList({}: ConceptsListProps) {
               <button
                 key={concept._id}
                 onClick={() => setSelectedConcept(concept._id)}
+                onDoubleClick={() => openConceptNote(concept._id)}
                 className={`w-full rounded-lg p-3 text-left transition-colors hover:bg-accent ${
                   selectedConceptId === concept._id ? "bg-accent" : ""
                 }`}
+                title="Click to select, double-click to edit note"
               >
                 <div className="flex items-start gap-2">
                   <div className="mt-0.5">
@@ -219,6 +226,19 @@ export default function ConceptsList({}: ConceptsListProps) {
           </div>
         )}
       </div>
+
+      {/* Note Editor */}
+      {editingConceptNoteId && (
+        <ConceptNoteEditor
+          isOpen={true}
+          onClose={() => setEditingConceptNoteId(null)}
+          conceptTitle={concepts.find(c => c._id === editingConceptNoteId)?.title || "Unknown Concept"}
+          note={concepts.find(c => c._id === editingConceptNoteId)?.note || ""}
+          onSave={async (note) => {
+            await updateConcept(editingConceptNoteId, { note });
+          }}
+        />
+      )}
     </div>
   );
 }

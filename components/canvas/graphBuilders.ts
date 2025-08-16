@@ -130,7 +130,8 @@ export function buildGraphElements(
   responseGraphs: Map<string, ResponseGraph>,
   selectedId?: string | null,
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
-  pendingByChat: Record<string, Pending | undefined> = {}
+  pendingByChat: Record<string, Pending | undefined> = {},
+  onConceptDoubleClick?: (conceptId: string) => void
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
@@ -174,6 +175,7 @@ export function buildGraphElements(
           snippet: concept.snippet,
           sourceType: concept.sourceType,
           selected: selectedId === concept._id,
+          onDoubleClick: () => onConceptDoubleClick?.(concept._id),
         },
       });
       
@@ -276,6 +278,7 @@ export function buildGraphElements(
         snippet: concept.snippet,
         sourceType: concept.sourceType,
         selected: selectedId === concept._id,
+        onDoubleClick: () => onConceptDoubleClick?.(concept._id),
       },
     });
     

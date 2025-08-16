@@ -10,6 +10,7 @@ interface ConceptNodeProps {
     snippet: string;
     sourceType: "url" | "pdf" | "chat";
     selected: boolean;
+    onDoubleClick?: () => void;
   };
 }
 
@@ -33,6 +34,8 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
             : "border-border hover:border-primary/50"
         }`}
         style={{ width: 200 }}
+        onDoubleClick={data.onDoubleClick}
+        title="Double-click to edit note"
       >
         <div className="flex items-start gap-2">
           <div className="mt-0.5">

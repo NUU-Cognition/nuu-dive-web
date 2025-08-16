@@ -130,3 +130,22 @@ export const get = query({
     };
   },
 });
+
+export const update = mutation({
+  args: {
+    conceptId: v.id("concepts"),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const concept = await ctx.db.get(args.conceptId);
+    if (!concept) {
+      throw new Error("Concept not found");
+    }
+    
+    await ctx.db.patch(args.conceptId, {
+      note: args.note,
+    });
+    
+    return { success: true };
+  },
+});

@@ -21,6 +21,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Spinner } from "@/components/ui/spinner";
+import { ConceptNoteEditor } from "@/components/concept/ConceptNoteEditor";
 
 interface CanvasViewProps {
   diveId: string;
@@ -47,6 +48,10 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setLeafForChat,
     getLeafForChat,
     pendingByChat,
+    openConceptNote,
+    editingConceptNoteId,
+    setEditingConceptNoteId,
+    updateConcept,
   } = useWorkspace();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -90,7 +95,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       responseGraphs,
       selectedResponseId || selectedConceptId || selectedDocumentId,
       handleNodeClick,
-      pendingByChat
+      pendingByChat,
+      openConceptNote
     );
 
     // Auto-layout if we have nodes
@@ -118,6 +124,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setLeafForChat,
     getLeafForChat,
     pendingByChat,
+    openConceptNote,
   ]);
 
   const onNodeClick = useCallback(
@@ -199,6 +206,19 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Note Editor */}
+      {editingConceptNoteId && (
+        <ConceptNoteEditor
+          isOpen={true}
+          onClose={() => setEditingConceptNoteId(null)}
+          conceptTitle={concepts.find(c => c._id === editingConceptNoteId)?.title || "Unknown Concept"}
+          note={concepts.find(c => c._id === editingConceptNoteId)?.note || ""}
+          onSave={async (note) => {
+            await updateConcept(editingConceptNoteId, { note });
+          }}
+        />
       )}
     </div>
   );
