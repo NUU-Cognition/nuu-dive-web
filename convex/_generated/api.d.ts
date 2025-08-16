@@ -19,6 +19,8 @@ import type * as concepts from "../concepts.js";
 import type * as dives from "../dives.js";
 import type * as documents from "../documents.js";
 import type * as exports from "../exports.js";
+import type * as extTokens from "../extTokens.js";
+import type * as files from "../files.js";
 import type * as inclusionOverrides from "../inclusionOverrides.js";
 import type * as messages from "../messages.js";
 import type * as migrations from "../migrations.js";
@@ -39,6 +41,8 @@ declare const fullApi: ApiFromModules<{
   dives: typeof dives;
   documents: typeof documents;
   exports: typeof exports;
+  extTokens: typeof extTokens;
+  files: typeof files;
   inclusionOverrides: typeof inclusionOverrides;
   messages: typeof messages;
   migrations: typeof migrations;

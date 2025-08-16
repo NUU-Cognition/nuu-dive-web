@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Never npm run dev the user will do it manually
+
 ## Common Commands
 
 ### Development

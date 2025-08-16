@@ -88,15 +88,14 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
         >
           Prompt this document...
         </button>
-        {data.url && (
-          <button
-            onClick={data.onOpen}
-            className="px-3 py-1.5 text-xs font-medium rounded-md
-                       border hover:bg-accent transition-colors"
-          >
-            Open
-          </button>
-        )}
+        <button
+          onClick={data.onOpen}
+          className="px-3 py-1.5 text-xs font-medium rounded-md
+                     border hover:bg-accent transition-colors"
+          title="Open in main panel"
+        >
+          Open
+        </button>
       </div>
 
       {/* Output handle (bottom) */}

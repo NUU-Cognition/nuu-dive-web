@@ -58,11 +58,18 @@ interface WorkspaceContextType {
     documentId?: string;
     sourceMessageId?: string; // provenance when created from a response
     firstPrompt: string;      // UI-facing; will be sent as firstQuestion for compat
+    pdfId?: string;
+    pdfMeta?: { fileName: string; page?: number; rect?: { x: number; y: number; w: number; h: number } };
   }) => Promise<{ conceptId: string; chatId: string; firstUserMessageId: string }>;
   addDocument: (args: {
     kind: "url" | "pdf";
     title: string;
     url?: string;
+    pdfId?: string;
+    pdfMeta?: {
+      fileName: string;
+      pageCount?: number;
+    };
   }) => Promise<string>;
   updateConcept: (id: string, updates: Partial<Concept>) => void; // (no-op for now)
 
@@ -217,6 +224,8 @@ export function WorkspaceProvider({
       documentId,
       sourceMessageId,
       firstPrompt,
+      pdfId,
+      pdfMeta,
     }: {
       title: string;
       snippet: string;
@@ -225,6 +234,12 @@ export function WorkspaceProvider({
       documentId?: string;
       sourceMessageId?: string;
       firstPrompt: string;
+      pdfId?: string;
+      pdfMeta?: {
+        fileName: string;
+        page?: number;
+        rect?: { x: number; y: number; w: number; h: number };
+      };
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
@@ -243,6 +258,8 @@ export function WorkspaceProvider({
         sourceMessageId: sourceMessageId as Id<"messages"> | undefined,
         firstQuestion: firstPrompt, // keep Convex arg name stable
         userId: currentUserId as unknown as Id<"users">,
+        pdfId: pdfId as Id<"_storage"> | undefined,
+        pdfMeta: pdfMeta,
       });
       const conceptId = (res as any).conceptId as string;
       const chatId = (res as any).chatId as string;
@@ -259,10 +276,17 @@ export function WorkspaceProvider({
       kind,
       title,
       url,
+      pdfId,
+      pdfMeta,
     }: {
       kind: "url" | "pdf";
       title: string;
       url?: string;
+      pdfId?: string;
+      pdfMeta?: {
+        fileName: string;
+        pageCount?: number;
+      };
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
@@ -276,6 +300,8 @@ export function WorkspaceProvider({
         kind,
         title,
         url,
+        pdfId: pdfId as Id<"_storage"> | undefined,
+        pdfMeta,
         userId: currentUserId as unknown as Id<"users">,
       });
       
@@ -301,7 +327,8 @@ export function WorkspaceProvider({
   
   const setSelectedDocument = useCallback((documentId: string | null) => {
     setSelectedDocumentId(documentId);
-    setSelectedConceptId(null);
+    // Do NOT clear concept selection. This allows chat to remain concept-anchored
+    // while a document is shown as the main panel.
   }, []);
 
   return (
