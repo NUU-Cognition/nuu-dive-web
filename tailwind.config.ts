@@ -52,6 +52,14 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        'ice': {
+          50: '#f8fafc',   // light ice blue
+          100: '#f1f5f9',  // deep ice blue  
+          200: '#e2e8f0',  // medium ice blue 
+          300: '#cbd5e1',  // ice blue 
+          400: '#94a3b8',
+          500: '#334155',
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

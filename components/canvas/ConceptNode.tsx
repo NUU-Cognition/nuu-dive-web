@@ -21,6 +21,11 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
         position={Position.Top} 
         className="!bg-primary"
       />
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        className="!bg-primary"
+      />
       <div
         className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all ${
           data.selected 
@@ -50,6 +55,11 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
       <Handle 
         type="source" 
         position={Position.Bottom} 
+        className="!bg-primary"
+      />
+      <Handle 
+        type="source" 
+        position={Position.Left} 
         className="!bg-primary"
       />
     </>
