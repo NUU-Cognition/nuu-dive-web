@@ -15,7 +15,7 @@ import "reactflow/dist/style.css";
 import ConceptNode from "./ConceptNode";
 import DocumentNode from "./DocumentNode";
 import ResponseNode from "./ResponseNode";
-import { buildGraphElements, autoLayout } from "./graphBuilders";
+import { buildGraphElements, autoLayout, type ResponseGraphEdge } from "./graphBuilders";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -47,6 +47,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setLeafForChat,
     getLeafForChat,
     pendingByChat,
+    openConceptNote,
   } = useWorkspace();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -68,12 +69,12 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
   const findPathToRoot = useCallback((clickedNodeId: string, edges: Edge[]) => {
     const path: string[] = [];
-    let currentNodeId = clickedNodeId;
+    let currentNodeId: string | undefined = clickedNodeId;
 
     while (currentNodeId) {
       path.unshift(currentNodeId);
       const parentEdge = edges.find(e => e.target === currentNodeId);
-      currentNodeId = parentEdge?.source || "";
+      currentNodeId = parentEdge?.source;
     }
     return path;
   }, []);
@@ -95,7 +96,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       // Build a temporary graph to check relationships
       const tempEdges: Edge[] = [];
       responseGraphs.forEach((graph) => {
-        graph.edges.forEach((edge: any) => {
+        graph.edges.forEach((edge: ResponseGraphEdge | any) => {
           const sourceId = edge.from.type === "response" 
             ? `response-${edge.from.id}`
             : (edge.from.type === "concept" ? `concept-${edge.from.id}` : `doc-${edge.from.id}`);
@@ -158,6 +159,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       selectedResponseId || selectedConceptId || selectedDocumentId,
       handleNodeClick,
       pendingByChat,
+      openConceptNote,
       selectedNode,
     );
 
@@ -187,6 +189,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setLeafForChat,
     getLeafForChat,
     pendingByChat,
+    openConceptNote,
   ]);
 
   const onNodeClick = useCallback(
