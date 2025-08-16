@@ -44,13 +44,13 @@ export const create = mutation({
       createdAt,
     });
     
-    // Auto-create a chat for this concept with proper anchor
+    // Auto-create a conversation for this concept (but separate from concept)
     const chatId = await ctx.db.insert("chats", {
       diveId: args.diveId,
       anchorType: "concept",
       anchorId: conceptId,
       conceptId, // Keep for backwards compatibility
-      title: args.title,
+      title: `Discussion: ${args.title}`,
       createdBy: args.userId,
       createdAt,
       updatedAt: createdAt,
@@ -71,14 +71,14 @@ export const create = mutation({
       depth: 0,
     });
     
-    // Optionally create first QUESTION (user message)
+    // Create first user message with the provided prompt
     let firstUserMessageId: string | undefined;
     if (args.firstQuestion && args.firstQuestion.trim()) {
       firstUserMessageId = await ctx.db.insert("messages", {
         chatId,
         parentMessageId: noteId,
         role: "user",
-        content: args.firstQuestion, // still named question for API compat; treated as a prompt
+        content: args.firstQuestion,
         createdBy: args.userId,
         createdAt: createdAt + 1, // Ensure it comes after the note
         depth: 1,
@@ -91,6 +91,7 @@ export const create = mutation({
     return { conceptId, chatId, firstUserMessageId };
   },
 });
+
 
 export const listByDive = query({
   args: {

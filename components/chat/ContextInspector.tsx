@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Info, FileText, Link2, MessageSquare } from "lucide-react";
+import { Info, Link2, MessageSquare } from "lucide-react";
 
 interface Message {
   _id: string;
@@ -68,7 +68,7 @@ export default function ContextInspector({
         <DialogHeader>
           <DialogTitle>Context Inspector</DialogTitle>
           <DialogDescription>
-            Control which messages and sources are included in the AI's context for the next response.
+            Control which messages and sources are included in the AI&apos;s context for the next response.
           </DialogDescription>
         </DialogHeader>
 

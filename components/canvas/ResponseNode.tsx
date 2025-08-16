@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Handle, Position, NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 
 interface ResponseNodeData {
   content: string;

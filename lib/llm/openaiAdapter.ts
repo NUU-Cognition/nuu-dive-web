@@ -1,4 +1,4 @@
-import { LLMAdapter, LLMStream, LLMMessage } from "./provider";
+import type { LLMAdapter, LLMMessage } from "./provider";
 
 export const openaiAdapter: LLMAdapter = {
   async *stream({

@@ -7,7 +7,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { GitBranch, Plus, ChevronLeft, Settings, PanelLeftClose, PanelLeft, Link2, FileText } from "lucide-react";
+import { GitBranch, ChevronLeft, Settings, PanelLeftClose, PanelLeft, Link2, FileText } from "lucide-react";
 import Link from "next/link";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
 function DiveWorkspaceContent() {
   const params = useParams();
   const diveId = params.diveId as string;
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);

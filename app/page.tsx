@@ -8,7 +8,7 @@ import { ArrowRight, Sparkles, GitBranch, FileText } from "lucide-react";
 import Link from "next/link";
 
 export default function HomePage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
 
   useEffect(() => {

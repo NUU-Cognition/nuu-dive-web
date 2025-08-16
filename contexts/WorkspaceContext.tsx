@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery } from "convex/react";
@@ -58,6 +58,12 @@ interface WorkspaceContextType {
     documentId?: string;
     sourceMessageId?: string; // provenance when created from a response
     firstPrompt: string;      // UI-facing; will be sent as firstQuestion for compat
+    pdfId?: string;
+    pdfMeta?: {
+      fileName: string;
+      page?: number;
+      rect?: { x: number; y: number; w: number; h: number };
+    };
   }) => Promise<{ conceptId: string; chatId: string; firstUserMessageId: string }>;
   addDocument: (args: {
     kind: "url" | "pdf";
@@ -161,6 +167,7 @@ export function WorkspaceProvider({
         sourceType: c.sourceType as Concept["sourceType"],
         sourceUrl: c.sourceUrl ?? undefined,
         documentId: (c as any).documentId ?? undefined,
+        sourceMessageId: (c as any).sourceMessageId ?? undefined,
         createdAt: c.createdAt,
         diveId: c.diveId as unknown as string,
         chatId: undefined, // resolved on demand via concepts.get
@@ -204,8 +211,8 @@ export function WorkspaceProvider({
 
   // Default selection: first concept
   useEffect(() => {
-    if (!selectedConceptId && concepts.length > 0) {
-      setSelectedConceptId(concepts[0]._id);
+    if (!selectedConceptId && concepts.length > 0 && concepts[0]?._id) {
+      setSelectedConceptId(concepts[0]._id as string);
     }
   }, [concepts, selectedConceptId]);
 
@@ -268,7 +275,7 @@ export function WorkspaceProvider({
     },
     [createConcept, currentUserId, diveId]
   );
-  
+
   const addDocument = useCallback(
     async ({
       kind,

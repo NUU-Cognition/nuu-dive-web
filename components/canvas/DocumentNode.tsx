@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Handle, Position, NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 import { FileText, Link2, MessageCircle, Hash } from "lucide-react";
 
 function hostname(url?: string) {

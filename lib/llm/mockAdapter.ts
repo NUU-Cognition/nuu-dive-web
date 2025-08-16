@@ -1,4 +1,4 @@
-import { LLMAdapter, LLMStream, StreamChunk } from "./provider";
+import type { LLMAdapter } from "./provider";
 
 const MOCK_RESPONSES = [
   "I understand you're asking about {topic}. Let me explain this concept in detail.\n\n",
@@ -7,7 +7,7 @@ const MOCK_RESPONSES = [
 ];
 
 export const mockAdapter: LLMAdapter = {
-  async *stream({ contextMessages, user }) {
+  async *stream() {
     // Simulate processing delay
     await new Promise((resolve) => setTimeout(resolve, 500));
 

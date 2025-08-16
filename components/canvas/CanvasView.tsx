@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import ReactFlow, {
-  Node,
-  Edge,
+  type Node,
   Controls,
   Background,
   MiniMap,
@@ -126,7 +125,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       } else if (type === "response") {
         // Find the chatId for this response from the precomputed graphs
         for (const [, graph] of responseGraphs) {
-          if (graph.nodes?.some?.((n: any) => n.id === id)) {
+          if (graph.nodes?.some?.((n) => n.id === id)) {
             setSelectedChat(graph.anchor.chatId);
             setLeafForChat(graph.anchor.chatId, id);
             break;
@@ -138,10 +137,9 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   );
 
   const onEdgeClick = useCallback(
-    (_evt: React.MouseEvent, edge: any) => {
-      const prompt = (edge?.data?.prompt as string | undefined) ?? (edge?.label as string | undefined);
+    (_evt: React.MouseEvent, edge: { data?: { prompt?: string }; label?: string }) => {
+      const prompt = edge?.data?.prompt ?? edge?.label;
       if (!prompt) return;
-      // eslint-disable-next-line no-alert
       alert(prompt);
     },
     []

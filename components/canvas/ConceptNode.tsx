@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position } from "reactflow";
-import { FileText, Link2 } from "lucide-react";
+import { FileText, Link2, MessageSquare } from "lucide-react";
 
 interface ConceptNodeProps {
   data: {
@@ -33,6 +33,8 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
           <div className="mt-0.5">
             {data.sourceType === "url" ? (
               <Link2 className="h-4 w-4 text-muted-foreground" />
+            ) : data.sourceType === "chat" ? (
+              <MessageSquare className="h-4 w-4 text-green-600" />
             ) : (
               <FileText className="h-4 w-4 text-muted-foreground" />
             )}
