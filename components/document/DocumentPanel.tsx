@@ -34,6 +34,7 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
     api.documents.get,
     { documentId: documentId as Id<"documents"> }
   );
+  const documentLoading = document === undefined;
   
   // Get existing chats for this document
   const documentChats = useQuery(
@@ -126,10 +127,21 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
       ? "flex-1 min-w-0 border-r bg-background h-full flex flex-col"
       : "w-[400px] border-l bg-background h-full flex flex-col";
 
-  if (!document) {
+  if (documentLoading) {
     return (
       <div className={outerClass + " flex items-center justify-center"}>
-        <div className="animate-pulse">Loading document...</div>
+        <div className="text-sm text-muted-foreground">
+          Loading document…
+        </div>
+      </div>
+    );
+  }
+  if (document === null) {
+    return (
+      <div className={outerClass + " flex items-center justify-center"}>
+        <div className="text-center">
+          <p className="text-muted-foreground">Document not found</p>
+        </div>
       </div>
     );
   }

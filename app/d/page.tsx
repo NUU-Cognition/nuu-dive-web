@@ -21,6 +21,8 @@ import { Plus, GitBranch, FileText, Clock, Search } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DivesListPage() {
   const { data: session, status } = useSession();
@@ -73,33 +75,13 @@ export default function DivesListPage() {
   const convexDives = useQuery(
     api.dives.listByUser,
     currentUserId ? { userId: currentUserId as Id<"users"> } : "skip"
-  ) || [];
+  );
+  const divesLoading = currentUserId ? convexDives === undefined : true;
 
   // Create dive mutation
   const createDive = useMutation(api.dives.create);
 
-  // Mock dives for when Convex isn't ready yet
-  const mockDives = [
-    {
-      _id: "1",
-      title: "Quantum Computing Research",
-      description: "Exploring quantum entanglement and computing applications",
-      createdAt: Date.now() - 86400000,
-      updatedAt: Date.now() - 3600000,
-      conceptCount: 5,
-    },
-    {
-      _id: "2",
-      title: "Machine Learning Papers",
-      description: "Deep learning architectures and optimization techniques",
-      createdAt: Date.now() - 172800000,
-      updatedAt: Date.now() - 7200000,
-      conceptCount: 8,
-    },
-  ];
-
-  // Use Convex dives if available, otherwise show mock dives
-  const dives = convexDives.length > 0 ? convexDives : mockDives;
+  const dives = convexDives ?? [];
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -110,7 +92,7 @@ export default function DivesListPage() {
   if (status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
+        <Spinner label="Signing you in…" />
       </div>
     );
   }
@@ -233,7 +215,20 @@ export default function DivesListPage() {
           </div>
         </div>
 
-        {filteredDives.length === 0 ? (
+        {divesLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-lg border p-6 space-y-3">
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-full" />
+                <div className="flex items-center justify-between pt-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredDives.length === 0 ? (
           <div className="rounded-lg border border-dashed p-12 text-center">
             <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-medium">No dives yet</h3>

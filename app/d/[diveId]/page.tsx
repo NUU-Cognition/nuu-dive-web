@@ -47,10 +47,9 @@ function DiveWorkspaceContent() {
   // Get dive details from Convex
   const dive = useQuery(
     api.dives.get,
-    diveId && diveId !== "1" && diveId !== "2" 
-      ? { diveId: diveId as Id<"dives"> } 
-      : "skip"
+    diveId ? { diveId: diveId as Id<"dives"> } : "skip"
   );
+  const diveLoading = dive === undefined;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -61,13 +60,13 @@ function DiveWorkspaceContent() {
   if (status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse">Loading workspace...</div>
+        <div className="text-center text-sm text-muted-foreground">Loading workspace…</div>
       </div>
     );
   }
 
-  // Handle case where dive doesn't exist or is a mock ID
-  if (!dive && diveId !== "1" && diveId !== "2") {
+  // Handle case where dive doesn't exist
+  if (dive === null) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
@@ -81,15 +80,7 @@ function DiveWorkspaceContent() {
       </div>
     );
   }
-
-  // Use mock data for legacy IDs
-  const displayDive = dive || {
-    _id: diveId,
-    title: diveId === "1" ? "Quantum Computing Research" : "Machine Learning Papers",
-    description: diveId === "1" 
-      ? "Exploring quantum entanglement and computing applications"
-      : "Deep learning architectures and optimization techniques",
-  };
+  // At this point dive is either loading (undefined) or an object
 
   const handleAddUrl = async () => {
     if (!newDocumentUrl.trim() || !newDocumentTitle.trim()) return;
@@ -177,7 +168,7 @@ function DiveWorkspaceContent() {
             </Button>
             <div className="flex items-center gap-2">
               <GitBranch className="h-5 w-5" />
-              <h1 className="text-lg font-semibold">{displayDive.title}</h1>
+              <h1 className="text-lg font-semibold">{diveLoading ? "…" : dive?.title}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -46,6 +46,8 @@ interface WorkspaceContextType {
   // Data
   concepts: Concept[];
   documents: Document[];
+  documentsLoading: boolean;
+  conceptsLoading: boolean;
   // Leaf cursor management
   getLeafForChat: (chatId: string) => string | undefined;
   setLeafForChat: (chatId: string, messageId: string | null) => void;
@@ -123,25 +125,25 @@ export function WorkspaceProvider({
     };
   }, [session?.user?.email, session?.user?.name, getOrCreateUser]);
 
-  // Documents and Concepts for this dive (skip for mock dive IDs)
-  const isMockDiveId = diveId === "1" || diveId === "2";
-  
+  // Documents and Concepts for this dive
   const convexDocuments =
     useQuery(
       api.documents.listByDive,
-      !isMockDiveId && diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
-    ) || [];
-    
+      diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
+    );
   const convexConcepts =
     useQuery(
       api.concepts.listByDive,
-      !isMockDiveId && diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
-    ) || [];
+      diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
+    );
+
+  const documentsLoading = convexDocuments === undefined;
+  const conceptsLoading = convexConcepts === undefined;
 
   // Map Convex docs to the interface used by components
   const documents: Document[] = useMemo(
     () =>
-      convexDocuments.map((d: DocumentDoc & { responseCount?: number; conceptCount?: number }) => ({
+      (convexDocuments ?? []).map((d: DocumentDoc & { responseCount?: number; conceptCount?: number }) => ({
         _id: d._id as string,
         title: d.title,
         kind: d.kind as Document["kind"],
@@ -156,7 +158,7 @@ export function WorkspaceProvider({
   
   const concepts: Concept[] = useMemo(
     () =>
-      convexConcepts.map((c: ConceptDoc) => ({
+      (convexConcepts ?? []).map((c: ConceptDoc) => ({
         _id: c._id as string,
         title: c.title,
         snippet: c.snippet,
@@ -206,10 +208,10 @@ export function WorkspaceProvider({
 
   // Default selection: first concept
   useEffect(() => {
-    if (!selectedConceptId && concepts.length > 0) {
+    if (!conceptsLoading && !selectedConceptId && concepts.length > 0) {
       setSelectedConceptId(concepts[0]._id);
     }
-  }, [concepts, selectedConceptId]);
+  }, [conceptsLoading, concepts, selectedConceptId]);
 
   // Mutations
   const createConcept = useMutation(api.concepts.create);
@@ -242,11 +244,6 @@ export function WorkspaceProvider({
       };
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
-      
-      // Don't allow creating concepts in mock dives
-      if (diveId === "1" || diveId === "2") {
-        throw new Error("Cannot create concepts in demo dives. Please create a new dive first.");
-      }
       
       const res = await createConcept({
         diveId: diveId as unknown as Id<"dives">,
@@ -290,11 +287,6 @@ export function WorkspaceProvider({
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
-      // Don't allow creating documents in mock dives
-      if (diveId === "1" || diveId === "2") {
-        throw new Error("Cannot create documents in demo dives. Please create a new dive first.");
-      }
-      
       const documentId = await createDocument({
         diveId: diveId as unknown as Id<"dives">,
         kind,
@@ -336,6 +328,8 @@ export function WorkspaceProvider({
       value={{
         concepts,
         documents,
+        documentsLoading,
+        conceptsLoading,
         addConcept,
         addDocument,
         updateConcept,

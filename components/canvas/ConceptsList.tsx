@@ -16,6 +16,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ConceptsListProps {
   diveId: string;
@@ -26,7 +27,8 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
     concepts, 
     addConcept, 
     selectedConceptId, 
-    setSelectedConcept 
+    setSelectedConcept,
+    conceptsLoading,
   } = useWorkspace();
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -156,7 +158,21 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
 
       {/* Concepts list */}
       <div className="flex-1 overflow-y-auto p-2">
-        {filteredConcepts.length === 0 ? (
+        {conceptsLoading ? (
+          <div className="space-y-2 p-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <div className="h-4 w-4 rounded bg-muted/50 mt-0.5" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filteredConcepts.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             {searchQuery ? "No concepts found" : "No concepts yet"}
           </div>

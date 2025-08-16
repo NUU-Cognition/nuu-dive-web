@@ -26,7 +26,7 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
     useQuery(
       api.messages.listByChat,
       chatId ? ({ chatId: chatId as unknown as Id<"chats"> }) : "skip"
-    ) || [];
+    );
 
   const createUser = useMutation(api.messages.createUser);
   const createAssistant = useMutation(api.messages.createAssistant);

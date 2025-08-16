@@ -20,6 +20,7 @@ import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Spinner } from "@/components/ui/spinner";
 
 interface CanvasViewProps {
   diveId: string;
@@ -35,6 +36,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   const { 
     concepts, 
     documents,
+    documentsLoading,
+    conceptsLoading,
     selectedConceptId, 
     selectedDocumentId,
     selectedChatId,
@@ -51,10 +54,9 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   // Get ALL response graphs for this dive at once
   const allGraphs = useQuery(
     api.messages.allResponseGraphs,
-    diveId && diveId !== "1" && diveId !== "2"
-      ? { diveId: diveId as Id<"dives"> }
-      : "skip"
+    diveId ? { diveId: diveId as Id<"dives"> } : "skip"
   );
+  const graphsLoading = allGraphs === undefined;
   
   // Convert to Map for easy lookup
   const responseGraphs = useMemo(() => {
@@ -149,6 +151,11 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
   return (
     <div className="h-full w-full">
+      {(documentsLoading || conceptsLoading || graphsLoading) && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <Spinner size="md" label="Building canvas…" />
+        </div>
+      )}
       <ReactFlow
         nodes={nodes}
         edges={edges}

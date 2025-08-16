@@ -20,7 +20,7 @@ export default function HomePage() {
   if (status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
+        <div className="text-sm text-muted-foreground">Loading…</div>
       </div>
     );
   }

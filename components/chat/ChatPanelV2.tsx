@@ -61,7 +61,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
   // Messages for this chat
   const {
-    messages = [],
+    messages: rawMessages,
     createUserMessage,
     createAssistantMessage,
     createBranch,
@@ -72,6 +72,8 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     userId: currentUserId || "",
     diveId,
   });
+  const messages = rawMessages ?? [];
+  const messagesLoading = rawMessages === undefined;
 
   // Build indices for efficient lookups
   const byId = useMemo(() => new Map(messages.map((m) => [m._id, m])), [messages]);
@@ -359,7 +361,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Chat</h2>
-          {path.length > 0 && (
+          {(!messagesLoading && path.length > 0) && (
             <span className="text-xs text-muted-foreground">
               {path.filter(m => m.role !== "note").length} messages
             </span>
@@ -384,7 +386,29 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       {/* Messages - showing only the current path */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
-          {path.map((node) => (
+          {messagesLoading && (
+            <div className="space-y-4">
+              <div className="group relative flex gap-3">
+                <div className="flex-shrink-0">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary" />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-32 bg-muted/50 rounded" />
+                  <div className="h-16 w-full bg-muted/50 rounded" />
+                </div>
+              </div>
+              <div className="group relative flex gap-3">
+                <div className="flex-shrink-0">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20" />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-28 bg-muted/50 rounded" />
+                  <div className="h-10 w-2/3 bg-muted/50 rounded" />
+                </div>
+              </div>
+            </div>
+          )}
+          {!messagesLoading && path.map((node) => (
             <MessageItem
               key={node._id}
               message={node}
@@ -428,9 +452,10 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             size="sm"
             onClick={() => setContextInspectorOpen(true)}
             className="text-xs"
+            disabled={messagesLoading}
           >
             <Info className="mr-1 h-3 w-3" />
-            Context ({path.filter(m => m.role !== "note").length})
+            Context ({messagesLoading ? "…" : path.filter(m => m.role !== "note").length})
           </Button>
           <Button
             variant="ghost"
@@ -463,12 +488,12 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
               onKeyDown={handleKeyDown}
               placeholder={ready ? "Enter a prompt..." : "Initializing..."}
               className="min-h-[60px] resize-none"
-              disabled={isStreaming || !ready}
+              disabled={isStreaming || !ready || messagesLoading}
             />
             <div className="flex flex-col gap-2">
               <Button
                 onClick={handleSend}
-                disabled={!inputValue.trim() || isStreaming || !ready}
+                disabled={!inputValue.trim() || isStreaming || !ready || messagesLoading}
                 size="icon"
               >
                 <Send className="h-4 w-4" />
