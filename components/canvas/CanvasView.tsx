@@ -95,7 +95,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       // Build a temporary graph to check relationships
       const tempEdges: Edge[] = [];
       responseGraphs.forEach((graph) => {
-        graph.edges.forEach((edge) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        graph.edges.forEach((edge: any) => {
           const sourceId = edge.from.type === "response" 
             ? `response-${edge.from.id}`
             : (edge.from.type === "concept" ? `concept-${edge.from.id}` : `doc-${edge.from.id}`);
@@ -106,7 +107,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
       // Check if current leaf is reachable from the last selected node
       const pathToNewLeaf = findPathToRoot(currentLeafNodeId, tempEdges);
-      const lastSelectedIndex = pathToNewLeaf.indexOf(lastSelectedNode);
+      const lastSelectedIndex = lastSelectedNode ? pathToNewLeaf.indexOf(lastSelectedNode) : -1;
       
       if (lastSelectedIndex !== -1) {
         // Extend the path to include the new leaf
@@ -270,6 +271,10 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        edgesFocusable={false}
+        edgesUpdatable={false}
         fitView
         attributionPosition="bottom-left"
       >

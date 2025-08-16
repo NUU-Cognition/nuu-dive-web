@@ -1,4 +1,4 @@
-import { type Node, type Edge, Position } from "reactflow";
+import { type Node, type Edge } from "reactflow";
 
 type NodeWithLayout = Node & { 
   children: NodeWithLayout[]; 
@@ -546,8 +546,11 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
           // For siblings going right, find the rightmost position of all previous siblings
           let rightmostX = x;
           for (let i = 0; i < index; i++) {
-            const siblingRightmost = getRightmostX(node.children[i]);
-            rightmostX = Math.max(rightmostX, siblingRightmost);
+            const sibling = node.children[i];
+            if (sibling) {
+              const siblingRightmost = getRightmostX(sibling);
+              rightmostX = Math.max(rightmostX, siblingRightmost);
+            }
           }
           // Position this child to the right of all previous siblings
           positionNode(child, rightmostX + 150, y + 120);
