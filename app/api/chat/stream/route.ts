@@ -1,3 +1,9 @@
+// Prefer Node runtime for NextAuth + outbound streaming behavior
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+// Strongly discourage caching or static optimization
+export const fetchCache = "force-no-store";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -9,9 +15,10 @@ export async function POST(req: NextRequest) {
   try {
     // Check authentication (allow bypass in dev)
     const session = await getServerSession(authOptions);
-    const allowDevNoAuth = process.env.ALLOW_DEV_NO_AUTH === "1";
+    const allowDevNoAuth = process.env.ALLOW_DEV_NO_AUTH === "1" || process.env.NODE_ENV === "development";
     if (!session && !allowDevNoAuth) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      console.log("Authentication required. Set ALLOW_DEV_NO_AUTH=1 in .env.local for development.");
+      return new NextResponse("Unauthorized - Set ALLOW_DEV_NO_AUTH=1 for development", { status: 401 });
     }
 
     const body = await req.json();
@@ -127,8 +134,11 @@ export async function POST(req: NextRequest) {
     return new NextResponse(stream.readable, {
       headers: {
         "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
+        // Prevent buffering and content transformation by proxies/CDNs
+        "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
+        // Helps with Nginx/Vercel proxy buffering of long-lived responses
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (error) {

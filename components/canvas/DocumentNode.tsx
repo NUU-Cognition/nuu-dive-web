@@ -4,6 +4,15 @@ import { memo } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { FileText, Link2, MessageCircle, Hash } from "lucide-react";
 
+function hostname(url?: string) {
+  if (!url) return undefined;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
 interface DocumentNodeData {
   title: string;
   kind: "url" | "pdf";
@@ -46,7 +55,7 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
           </h3>
           {data.url && (
             <p className="text-xs text-muted-foreground truncate mt-1" title={data.url}>
-              {new URL(data.url).hostname}
+              {hostname(data.url) ?? data.url}
             </p>
           )}
         </div>
@@ -72,7 +81,7 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
                      bg-primary text-primary-foreground hover:bg-primary/90
                      transition-colors"
         >
-          Ask this document...
+          Prompt this document...
         </button>
         {data.url && (
           <button

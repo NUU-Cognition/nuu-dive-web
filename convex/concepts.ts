@@ -9,6 +9,7 @@ export const create = mutation({
     sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
+    sourceMessageId: v.optional(v.id("messages")),
     locatorCss: v.optional(v.string()),
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
@@ -35,6 +36,7 @@ export const create = mutation({
       sourceType: args.sourceType,
       sourceUrl: args.sourceUrl,
       documentId: args.documentId,
+      sourceMessageId: args.sourceMessageId,
       pdfId: args.pdfId,
       pdfMeta: args.pdfMeta,
       locatorCss: args.locatorCss,
@@ -56,11 +58,9 @@ export const create = mutation({
     
     // Create an initial note message with the concept snippet
     const sourceLabel =
-      args.sourceType === "url"
-        ? (args.sourceUrl || "URL")
-        : args.sourceType === "pdf"
-          ? "PDF"
-          : "Chat";
+      args.sourceMessageId ? "Response" :
+      args.sourceType === "url" ? (args.sourceUrl || "URL") :
+      args.sourceType === "pdf" ? "PDF" : "Chat";
     const noteId = await ctx.db.insert("messages", {
       chatId,
       parentMessageId: undefined,
@@ -78,7 +78,7 @@ export const create = mutation({
         chatId,
         parentMessageId: noteId,
         role: "user",
-        content: args.firstQuestion,
+        content: args.firstQuestion, // still named question for API compat; treated as a prompt
         createdBy: args.userId,
         createdAt: createdAt + 1, // Ensure it comes after the note
         depth: 1,

@@ -50,6 +50,7 @@ export default defineSchema({
     sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
+    sourceMessageId: v.optional(v.id("messages")), // when concept is highlighted from a prior response
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
       fileName: v.string(),
@@ -64,7 +65,10 @@ export default defineSchema({
     locatorCss: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
-  }).index("by_dive", ["diveId"]).index("by_document", ["documentId"]),
+  })
+    .index("by_dive", ["diveId"])
+    .index("by_document", ["documentId"])
+    .index("by_sourceMessage", ["sourceMessageId"]),
 
   chats: defineTable({
     diveId: v.id("dives"),

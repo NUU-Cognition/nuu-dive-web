@@ -53,11 +53,11 @@ export async function assembleContext({
 Always cite sources when available using [Source Name](url) format.
 Provide clear, structured responses using markdown formatting.`;
 
-  // Convert messages to LLM format
+  // Convert messages to LLM format - maintain conversation order
   const contextMessages: LLMMessage[] = filteredMessages
     .filter((m) => m.role !== "note") // Notes are for context, not conversation
     .map((m) => ({
-      role: m.role === "note" ? "system" : m.role as "system" | "user" | "assistant",
+      role: m.role as "user" | "assistant" | "system",
       content: m.content,
     }));
 

@@ -24,6 +24,7 @@ interface Concept {
   sourceType: "url" | "pdf" | "chat";
   sourceUrl?: string;
   documentId?: string;
+  sourceMessageId?: string;
   createdAt: number;
   // kept for compatibility with existing components; not used functionally
   chatId?: string;
@@ -45,6 +46,9 @@ interface WorkspaceContextType {
   // Data
   concepts: Concept[];
   documents: Document[];
+  // Leaf cursor management
+  getLeafForChat: (chatId: string) => string | undefined;
+  setLeafForChat: (chatId: string, messageId: string | null) => void;
   // Mutations
   addConcept: (args: {
     title: string;
@@ -52,7 +56,8 @@ interface WorkspaceContextType {
     sourceType: "url" | "pdf" | "chat";
     sourceUrl?: string;
     documentId?: string;
-    firstQuestion: string;
+    sourceMessageId?: string; // provenance when created from a response
+    firstPrompt: string;      // UI-facing; will be sent as firstQuestion for compat
   }) => Promise<{ conceptId: string; chatId: string; firstUserMessageId: string }>;
   addDocument: (args: {
     kind: "url" | "pdf";
@@ -164,6 +169,18 @@ export function WorkspaceProvider({
   );
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  
+  // Leaf cursor state - tracks current leaf message per chat
+  const [leafByChat, setLeafByChat] = useState<Record<string, string | undefined>>({});
+
+  const getLeafForChat = useCallback(
+    (chatId: string) => leafByChat[chatId],
+    [leafByChat]
+  );
+
+  const setLeafForChat = useCallback((chatId: string, messageId: string | null) => {
+    setLeafByChat((prev) => ({ ...prev, [chatId]: messageId ?? undefined }));
+  }, []);
 
   // When the selected concept changes, resolve its chat from Convex
   const selectedConceptDetail = useQuery(
@@ -198,14 +215,16 @@ export function WorkspaceProvider({
       sourceType,
       sourceUrl,
       documentId,
-      firstQuestion,
+      sourceMessageId,
+      firstPrompt,
     }: {
       title: string;
       snippet: string;
       sourceType: "url" | "pdf" | "chat";
       sourceUrl?: string;
       documentId?: string;
-      firstQuestion: string;
+      sourceMessageId?: string;
+      firstPrompt: string;
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
@@ -221,7 +240,8 @@ export function WorkspaceProvider({
         sourceType,
         sourceUrl,
         documentId: documentId as Id<"documents"> | undefined,
-        firstQuestion,
+        sourceMessageId: sourceMessageId as Id<"messages"> | undefined,
+        firstQuestion: firstPrompt, // keep Convex arg name stable
         userId: currentUserId as unknown as Id<"users">,
       });
       const conceptId = (res as any).conceptId as string;
@@ -298,6 +318,8 @@ export function WorkspaceProvider({
         setSelectedConcept,
         setSelectedChat,
         setSelectedDocument,
+        getLeafForChat,
+        setLeafForChat,
         diveId,
         currentUserId,
       }}

@@ -71,10 +71,19 @@ export const openaiAdapter: LLMAdapter = {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta;
             if (delta?.content) {
-              fullText += delta.content;
+              // Filter out thinking tags if present
+              const content = delta.content;
+              
+              // Skip content within thinking tags
+              if (content.includes("<thinking>") || content.includes("</thinking>")) {
+                console.warn("Found thinking tags in OpenAI response:", content);
+                continue;
+              }
+              
+              fullText += content;
               tokenCount++;
               yield {
-                token: delta.content,
+                token: content,
                 done: false,
               };
             }

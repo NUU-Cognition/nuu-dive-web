@@ -259,10 +259,107 @@ export const responseGraph = query({
       edges.push({
         from: parent,
         to: { type: "response", id: m._id },
-        label,
+        label,                       // short label for rendering
+        promptId: user?._id,         // the user message that created this edge
+        prompt: (user?.content && user.content.trim()) ? user.content : label, // fallback to label
       });
     }
 
     return { anchor, nodes, edges };
+  },
+});
+
+export const allResponseGraphs = query({
+  args: { 
+    diveId: v.id("dives") 
+  },
+  handler: async (ctx, { diveId }) => {
+    // Get all chats for this dive
+    const chats = await ctx.db
+      .query("chats")
+      .withIndex("by_dive", (q) => q.eq("diveId", diveId))
+      .collect();
+    
+    const graphs = new Map();
+    
+    for (const chat of chats) {
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+        .order("asc")
+        .collect();
+      
+      // Skip if no messages
+      if (messages.length === 0) continue;
+      
+      // Index by id
+      const byId = new Map(messages.map(m => [m._id, m]));
+      
+      // Helper: find nearest ancestor assistant
+      const nearestAssistant = (m: any): any | null => {
+        let cur = m;
+        while (cur?.parentMessageId) {
+          const p = byId.get(cur.parentMessageId);
+          if (!p) break;
+          if (p.role === "assistant") return p;
+          cur = p;
+        }
+        return null;
+      };
+      
+      const nodes: any[] = [];
+      const edges: any[] = [];
+      
+      // Determine anchor
+      let anchorType = chat.anchorType || "free";
+      let anchorId = chat.anchorId;
+      
+      if (!chat.anchorType && chat.conceptId) {
+        anchorType = "concept";
+        anchorId = chat.conceptId;
+      }
+      
+      const anchor = { 
+        type: anchorType, 
+        id: anchorId,
+        chatId: chat._id 
+      };
+      
+      for (const m of messages) {
+        if (m.role !== "assistant" || m.deletedAt) continue;
+        
+        const user = m.parentMessageId ? byId.get(m.parentMessageId) : null;
+        const label = user?.role === "user" 
+          ? (user.content.length > 90 ? user.content.substring(0, 87) + "..." : user.content)
+          : "(no prompt)";
+        
+        const parentAssistant = user ? nearestAssistant(user) : null;
+        const parent = parentAssistant 
+          ? { type: "response", id: parentAssistant._id }
+          : anchor;
+        
+        nodes.push({
+          type: "response",
+          id: m._id,
+          content: m.content,
+          createdAt: m.createdAt,
+          tokenCount: m.tokenCount,
+        });
+        
+        edges.push({
+          from: parent,
+          to: { type: "response", id: m._id },
+          label,
+          promptId: user?._id,
+          prompt: (user?.content && user.content.trim()) ? user.content : label,
+        });
+      }
+      
+      // Store by anchorId if it exists, otherwise by chatId
+      const key = anchorId || chat._id;
+      graphs.set(key, { anchor, nodes, edges });
+    }
+    
+    return Object.fromEntries(graphs);
   },
 });

@@ -26,10 +26,10 @@ interface Message {
 interface MessageItemProps {
   message: Message;
   isLatest: boolean;
-  onBranch: () => void;
-  onCopy: () => void;
-  onExtractConcept: () => void;
-  depth: number;
+  onBranch?: () => void;
+  onCopy?: () => void;
+  onExtractConcept?: () => void;
+  depth?: number;
 }
 
 export default function MessageItem({ 
@@ -38,7 +38,7 @@ export default function MessageItem({
   onBranch,
   onCopy,
   onExtractConcept,
-  depth 
+  depth = 0
 }: MessageItemProps) {
   const [copied, setCopied] = useState(false);
   const isAssistant = message.role === "assistant";
@@ -46,21 +46,13 @@ export default function MessageItem({
   const isNote = message.role === "note";
 
   const handleCopy = () => {
-    onCopy();
+    onCopy?.();
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div 
-      className="group relative flex gap-3"
-      style={{ marginLeft: depth > 0 ? `${depth * 16}px` : 0 }}
-    >
-      {/* Branch indicator for nested messages */}
-      {depth > 0 && (
-        <div className="absolute -left-3 top-4 h-px w-3 bg-border" />
-      )}
-
+    <div className="group relative flex gap-3">
       {/* Avatar */}
       <div className="flex-shrink-0">
         <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
@@ -87,11 +79,6 @@ export default function MessageItem({
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(message.createdAt, { addSuffix: true })}
           </span>
-          {depth > 0 && (
-            <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-              Branch
-            </span>
-          )}
         </div>
 
         <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -110,7 +97,7 @@ export default function MessageItem({
             <Button
               variant="ghost"
               size="sm"
-              onClick={onBranch}
+              onClick={() => onBranch?.()}
               className="h-7 text-xs"
             >
               <GitBranch className="mr-1 h-3 w-3" />
@@ -135,7 +122,7 @@ export default function MessageItem({
             <Button
               variant="ghost"
               size="sm"
-              onClick={onExtractConcept}
+              onClick={() => onExtractConcept?.()}
               className="h-7 text-xs"
             >
               <Sparkles className="mr-1 h-3 w-3" />

@@ -49,6 +49,18 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
 
   const createAssistantMessage = useCallback(
     async (content: string, parentMessageId: string, tokenCount?: number) => {
+      if (!chatId || !userId) {
+        throw new Error(`Missing required IDs: chatId=${chatId}, userId=${userId}`);
+      }
+      
+      console.log("Creating assistant message with:", {
+        chatId,
+        parentMessageId,
+        contentLength: content?.length,
+        tokenCount,
+        userId
+      });
+      
       const id = await createAssistant({
         chatId: chatId as unknown as Id<"chats">,
         parentMessageId: parentMessageId as unknown as Id<"messages">,
@@ -75,12 +87,13 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
   );
 
   const createConceptFromMessage = useCallback(
-    async (title: string, snippet: string) => {
+    async (title: string, snippet: string, sourceMessageId?: string) => {
       const res = await createConcept({
         diveId: diveId as unknown as Id<"dives">,
         title,
         snippet,
         sourceType: "chat",
+        sourceMessageId: sourceMessageId as unknown as Id<"messages"> | undefined,
         userId: userId as unknown as Id<"users">,
       });
       return res as { conceptId: string; chatId: string };

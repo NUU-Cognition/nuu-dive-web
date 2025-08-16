@@ -16,7 +16,7 @@ interface DocumentPanelProps {
 }
 
 export default function DocumentPanel({ documentId, onClose }: DocumentPanelProps) {
-  const { currentUserId } = useWorkspace();
+  const { currentUserId, setSelectedChat, setLeafForChat } = useWorkspace();
   const [question, setQuestion] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
@@ -48,13 +48,16 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
     onComplete: async (fullText) => {
       // Persist assistant reply under the user message we just created
       if (activeChatId && pendingParentId && currentUserId) {
-        await createAssistantMessage({
+        const assistantId = await createAssistantMessage({
           chatId: activeChatId as Id<"chats">,
           parentMessageId: pendingParentId as Id<"messages">,
           content: fullText,
           tokenCount: fullText.trim().split(/\s+/).length,
           userId: currentUserId as Id<"users">,
         });
+        // Set the leaf to the new assistant message
+        setLeafForChat(activeChatId, assistantId as string);
+        setSelectedChat(activeChatId);
       }
       setStreamingMessage("");
       setQuestion("");
@@ -100,9 +103,11 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
         chatId: chatId as string,
         parentMessageId: userMessageId as string,
         userText: question,
-        messages: [], // (Context assembly works without messages for now)
+        messages: [], // Note will exist server-side; we still attach for citations
         inclusionOverride: undefined,
-        attachments: [],
+        attachments: document?.url
+          ? [{ type: "url", url: document.url, title: document.title }]
+          : [],
       });
     } catch (error) {
       console.error("Failed to ask document:", error);
@@ -177,11 +182,11 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
       {/* Ask input */}
       <div className="border-t p-4 mt-auto">
         <div className="space-y-3">
-          <label className="text-sm font-medium">Ask this document...</label>
+          <label className="text-sm font-medium">Prompt this document...</label>
           <Textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="What would you like to know about this document?"
+            placeholder="Enter a prompt for this document…"
             className="min-h-[80px] resize-none"
             disabled={isStreaming || isCreatingChat}
             onKeyDown={(e) => {
@@ -197,7 +202,7 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
             className="w-full"
           >
             <Send className="mr-2 h-4 w-4" />
-            {isStreaming ? "Generating..." : "Ask"}
+            {isStreaming ? "Generating..." : "Prompt"}
           </Button>
         </div>
       </div>

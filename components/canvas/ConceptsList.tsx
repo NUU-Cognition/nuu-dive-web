@@ -34,14 +34,14 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
   const [newConceptTitle, setNewConceptTitle] = useState("");
   const [newConceptSnippet, setNewConceptSnippet] = useState("");
   const [newConceptUrl, setNewConceptUrl] = useState("");
-  const [firstQuestion, setFirstQuestion] = useState("");
+  const [firstPrompt, setFirstPrompt] = useState("");
 
   const filteredConcepts = concepts.filter((concept) =>
     concept.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreateConcept = async () => {
-    if (!newConceptTitle.trim() || !newConceptSnippet.trim() || !firstQuestion.trim()) return;
+    if (!newConceptTitle.trim() || !newConceptSnippet.trim() || !firstPrompt.trim()) return;
     
     try {
       const { conceptId, chatId, firstUserMessageId } = await addConcept({
@@ -49,7 +49,7 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
         snippet: newConceptSnippet,
         sourceType: newConceptUrl ? "url" : "chat",
         sourceUrl: newConceptUrl || undefined,
-        firstQuestion: firstQuestion,
+        firstPrompt,
       });
       
       setSelectedConcept(conceptId);
@@ -61,7 +61,7 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
       setNewConceptTitle("");
       setNewConceptSnippet("");
       setNewConceptUrl("");
-      setFirstQuestion("");
+      setFirstPrompt("");
       setCreateDialogOpen(false);
     } catch (error) {
       console.error("Failed to create concept:", error);
@@ -106,11 +106,11 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">First Question *</label>
+                  <label className="text-sm font-medium">First Prompt *</label>
                   <Textarea
-                    placeholder="What would you like to know about this concept?"
-                    value={firstQuestion}
-                    onChange={(e) => setFirstQuestion(e.target.value)}
+                    placeholder="Enter the first prompt you want to explore…"
+                    value={firstPrompt}
+                    onChange={(e) => setFirstPrompt(e.target.value)}
                     rows={2}
                     className="resize-none"
                   />
@@ -133,7 +133,7 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
                 </Button>
                 <Button 
                   onClick={handleCreateConcept}
-                  disabled={!newConceptTitle.trim() || !newConceptSnippet.trim() || !firstQuestion.trim()}
+                  disabled={!newConceptTitle.trim() || !newConceptSnippet.trim() || !firstPrompt.trim()}
                 >
                   Create & Ask
                 </Button>

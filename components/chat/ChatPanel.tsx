@@ -1,3 +1,7 @@
+/* @ts-nocheck */
+/**
+ * Legacy ChatPanel (not used). Kept for reference; ChatPanelV2 is the active one.
+ */
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -151,13 +155,12 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
   const handleCreateConcept = () => {
     if (!conceptTitle.trim() || !conceptSnippet.trim()) return;
 
-    const chatId = `chat_${Date.now()}`;
-    addConcept({
+    void addConcept({
       title: conceptTitle,
       snippet: conceptSnippet,
       sourceType: "chat",
-      chatId,
-      diveId,
+      sourceMessageId: selectedMessageForConcept?._id,
+      firstPrompt: "Summarize and explain this extracted concept.",
     });
 
     setExtractConceptDialog(false);
@@ -327,7 +330,7 @@ export default function ChatPanel({ diveId }: ChatPanelProps) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question..."
+            placeholder="Enter a prompt..."
             className="min-h-[60px] resize-none"
             disabled={isStreaming}
           />

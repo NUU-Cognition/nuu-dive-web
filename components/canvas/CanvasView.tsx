@@ -41,69 +41,43 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setSelectedConcept,
     setSelectedDocument,
     setSelectedChat,
+    setLeafForChat,
+    getLeafForChat,
   } = useWorkspace();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [responseGraphs, setResponseGraphs] = useState<Map<string, any>>(new Map());
-
-  // Get response graphs for selected items
-  const selectedConceptChat = useQuery(
-    api.concepts.get,
-    selectedConceptId && !selectedConceptId.startsWith("c")
-      ? { conceptId: selectedConceptId as Id<"concepts"> }
+  
+  // Get ALL response graphs for this dive at once
+  const allGraphs = useQuery(
+    api.messages.allResponseGraphs,
+    diveId && diveId !== "1" && diveId !== "2"
+      ? { diveId: diveId as Id<"dives"> }
       : "skip"
   );
-
-  const selectedDocumentChats = useQuery(
-    api.chats.listByAnchor,
-    selectedDocumentId
-      ? { anchorType: "document" as const, anchorId: selectedDocumentId as Id<"documents"> }
-      : "skip"
-  );
-
-  // Get response graph for selected concept's chat
-  const conceptResponseGraph = useQuery(
-    api.messages.responseGraph,
-    selectedConceptChat?.chat?._id
-      ? { chatId: selectedConceptChat.chat._id as Id<"chats"> }
-      : "skip"
-  );
-
-  // Get response graph for selected document's first chat (if any)
-  const documentResponseGraph = useQuery(
-    api.messages.responseGraph,
-    selectedDocumentChats?.[0]?._id
-      ? { chatId: selectedDocumentChats[0]._id as Id<"chats"> }
-      : "skip"
-  );
-
-  // Update response graphs map
-  useEffect(() => {
-    const newGraphs = new Map();
-    
-    if (selectedConceptId && conceptResponseGraph) {
-      newGraphs.set(selectedConceptId, conceptResponseGraph);
-    }
-    
-    if (selectedDocumentId && documentResponseGraph) {
-      newGraphs.set(selectedDocumentId, documentResponseGraph);
-    }
-    
-    setResponseGraphs(newGraphs);
-  }, [selectedConceptId, conceptResponseGraph, selectedDocumentId, documentResponseGraph]);
+  
+  // Convert to Map for easy lookup
+  const responseGraphs = useMemo(() => {
+    if (!allGraphs) return new Map();
+    return new Map(Object.entries(allGraphs));
+  }, [allGraphs]);
 
   // Build and layout the graph
   useEffect(() => {
-    const handleNodeClick = (nodeId: string, nodeType: string) => {
+    // If we have a selected chat, try to mark its current leaf response as selected
+    const selectedResponseId = selectedChatId ? getLeafForChat(selectedChatId) : undefined;
+
+    const handleNodeClick = (nodeId: string, nodeType: string, extra?: { chatId?: string }) => {
       if (nodeType === "document") {
         setSelectedDocument(nodeId);
       } else if (nodeType === "concept") {
         setSelectedConcept(nodeId);
       } else if (nodeType === "response") {
-        // Focus message in chat panel
-        // This would require finding the chat that contains this message
-        console.log("Focus response:", nodeId);
+        const chatId = extra?.chatId;
+        if (chatId) {
+          setSelectedChat(chatId);
+          setLeafForChat(chatId, nodeId); // nodeId is the response message _id
+        }
       }
     };
 
@@ -111,7 +85,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       documents,
       concepts,
       responseGraphs,
-      selectedConceptId || selectedDocumentId,
+      selectedResponseId || selectedConceptId || selectedDocumentId,
       handleNodeClick
     );
 
@@ -131,10 +105,14 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     responseGraphs,
     selectedConceptId,
     selectedDocumentId,
+    selectedChatId,
     setNodes,
     setEdges,
     setSelectedConcept,
     setSelectedDocument,
+    setSelectedChat,
+    setLeafForChat,
+    getLeafForChat,
   ]);
 
   const onNodeClick = useCallback(
@@ -146,11 +124,27 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       } else if (type === "concept") {
         setSelectedConcept(id);
       } else if (type === "response") {
-        // Could open chat panel focused on this message
-        console.log("Response clicked:", id);
+        // Find the chatId for this response from the precomputed graphs
+        for (const [, graph] of responseGraphs) {
+          if (graph.nodes?.some?.((n: any) => n.id === id)) {
+            setSelectedChat(graph.anchor.chatId);
+            setLeafForChat(graph.anchor.chatId, id);
+            break;
+          }
+        }
       }
     },
-    [setSelectedConcept, setSelectedDocument]
+    [setSelectedConcept, setSelectedDocument, responseGraphs, setSelectedChat, setLeafForChat]
+  );
+
+  const onEdgeClick = useCallback(
+    (_evt: React.MouseEvent, edge: any) => {
+      const prompt = (edge?.data?.prompt as string | undefined) ?? (edge?.label as string | undefined);
+      if (!prompt) return;
+      // eslint-disable-next-line no-alert
+      alert(prompt);
+    },
+    []
   );
 
   return (
@@ -160,6 +154,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onEdgeClick={onEdgeClick}
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         fitView

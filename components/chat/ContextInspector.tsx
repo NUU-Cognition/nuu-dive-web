@@ -33,6 +33,13 @@ export default function ContextInspector({
   onClose,
   messages,
 }: ContextInspectorProps) {
+  // Allow parent to receive saved overrides
+  // (non-breaking: treat unknown prop as optional)
+  // @ts-ignore
+  const onSaveOverrides = (ContextInspector as any).onSave as
+    | ((o: { includeIds?: string[]; excludeIds?: string[] }) => void)
+    | undefined;
+
   const [includedMessageIds, setIncludedMessageIds] = useState<Set<string>>(
     new Set(messages.map((m) => m._id))
   );
@@ -53,8 +60,9 @@ export default function ContextInspector({
   };
 
   const handleSave = () => {
-    // TODO: Save inclusion overrides to Convex
-    console.log("Saving context inclusions:", Array.from(includedMessageIds));
+    const include = Array.from(includedMessageIds);
+    const exclude = messages.map(m => m._id).filter(id => !includedMessageIds.has(id));
+    onSaveOverrides?.({ includeIds: include, excludeIds: exclude });
     onClose();
   };
 

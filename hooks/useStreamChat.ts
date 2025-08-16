@@ -85,8 +85,13 @@ export function useStreamChat(options: StreamChatOptions = {}) {
             if (line.startsWith("data: ")) {
               const data = line.slice(6);
               
-              // We let the finally block clean up isStreaming
-              if (data === "[DONE]") break;
+              if (data === "[DONE]") {
+                // Stop reading immediately; onComplete will already have fired (or will soon).
+                try {
+                  await reader.cancel();
+                } catch {}
+                break;
+              }
 
               try {
                 const parsed = JSON.parse(data);
@@ -114,9 +119,19 @@ export function useStreamChat(options: StreamChatOptions = {}) {
       } catch (error) {
         if ((error as any)?.name !== "AbortError") {
           console.error("Stream chat error:", error);
-          options.onError?.(
-            error instanceof Error ? error.message : "Unknown error"
-          );
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          
+          // Provide user-friendly error messages
+          let userMessage = errorMessage;
+          if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
+            userMessage = "Authentication required. Please sign in or set ALLOW_DEV_NO_AUTH=1 in development.";
+          } else if (errorMessage.includes("OPENAI_API_KEY")) {
+            userMessage = "OpenAI API key not configured. Please add OPENAI_API_KEY to .env.local";
+          } else if (errorMessage.includes("404")) {
+            userMessage = "Chat endpoint not found. Is the server running?";
+          }
+          
+          options.onError?.(userMessage);
         }
       } finally {
         setIsStreaming(false);

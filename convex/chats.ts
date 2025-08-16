@@ -97,6 +97,17 @@ export const createForDocument = mutation({
       createdAt,
       updatedAt: createdAt,
     });
+
+    // Seed a contextual note so assembleContext can inject document context
+    await ctx.db.insert("messages", {
+      chatId,
+      parentMessageId: undefined,
+      role: "note",
+      content: `# ${document.title}\n\n_Source_: ${document.url ? document.url : "Document"}\n\nUse this document as the primary source when answering.`,
+      createdBy: args.userId,
+      createdAt,
+      depth: 0,
+    });
     
     return chatId;
   },

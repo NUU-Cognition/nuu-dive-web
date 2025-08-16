@@ -2,18 +2,22 @@
 
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { SessionProvider } from "next-auth/react";
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
 export function Providers({ children }: { children: ReactNode }) {
-  // If Convex isn't configured, render app without the provider to keep UI working
   if (!convexUrl) {
-    console.warn("NEXT_PUBLIC_CONVEX_URL not set — Convex disabled. App will use local state only.");
-    return <SessionProvider>{children}</SessionProvider>;
+    console.error(
+      "NEXT_PUBLIC_CONVEX_URL is not set. Convex hooks require a provider; using a local placeholder client. " +
+        "Run `npx convex dev` and set NEXT_PUBLIC_CONVEX_URL in .env.local."
+    );
   }
-
-  const convex = new ConvexReactClient(convexUrl);
+  // Always provide a Convex client so hooks don't crash; the placeholder URL avoids immediate runtime throws.
+  const convex = useMemo(
+    () => new ConvexReactClient(convexUrl ?? "http://127.0.0.1:3210"),
+    [convexUrl]
+  );
   
   return (
     <SessionProvider>
