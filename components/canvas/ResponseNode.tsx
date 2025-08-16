@@ -9,13 +9,17 @@ interface ResponseNodeData {
   tokenCount?: number;
   selected?: boolean;
   onClick?: () => void;
+  isInPath?: boolean;
+  hasSelection?: boolean;
 }
 
 function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
   // Extract first 120 chars for tooltip
-  const preview = data.content.length > 120 
+  const preview = data.content.length > 200
     ? data.content.substring(0, 117) + "..."
     : data.content;
+
+  const { isInPath, hasSelection } = data;
 
   return (
     <div
@@ -31,16 +35,20 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
       <Handle 
         type="target" 
         position={Position.Right} 
-        className="!bg-primary"
+        className="!bg-transparent !border-0 !w-3 !h-3"
       />
 
       {/* Response dot */}
       <div
         className={`
           w-2.5 h-2.5 rounded-full transition-all
-          ${selected 
-            ? "bg-primary ring-2 ring-primary/40 scale-125" 
-            : "bg-black dark:bg-white dark:opacity-90 hover:ring-2 hover:ring-primary/20"
+          ${isInPath 
+            ? "bg-primary ring-4 ring-primary/60 scale-150 shadow-lg" 
+            : selected 
+              ? "bg-primary ring-2 ring-primary/40 scale-125" 
+              : hasSelection
+                ? "bg-black/30 dark:bg-white/30 scale-90" // Dimmed when something else is selected
+                : "bg-black dark:bg-white dark:opacity-90 hover:ring-2 hover:ring-primary/20"
           }
         `}
         title={preview}
@@ -66,7 +74,7 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
       <Handle 
         type="source" 
         position={Position.Left} 
-        className="!bg-primary"
+        className="!bg-transparent !border-0 !w-3 !h-3"
       />
     </div>
   );

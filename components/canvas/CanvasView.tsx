@@ -21,6 +21,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Spinner } from "@/components/ui/spinner";
+import { getEdgePolyfilledModules } from "next/dist/build/webpack/plugins/middleware-plugin";
 
 interface CanvasViewProps {
   diveId: string;
@@ -50,6 +51,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [selectedNode, setSelectedNode] = useState<string[]>([]);
   
   // Get ALL response graphs for this dive at once
   const allGraphs = useQuery(
@@ -63,6 +65,18 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     if (!allGraphs) return new Map();
     return new Map(Object.entries(allGraphs));
   }, [allGraphs]);
+
+  const findPathToRoot = useCallback((clickedNodeId: string, edges: Edge[]) => {
+    const path: string[] = [];
+    let currentNodeId = clickedNodeId;
+
+    while (currentNodeId) {
+      path.unshift(currentNodeId);
+      const parentEdge = edges.find(e => e.target === currentNodeId);
+      currentNodeId = parentEdge?.source || undefined;
+    }
+    return path;
+  }, []);
 
   // Build and layout the graph
   useEffect(() => {
@@ -88,7 +102,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       concepts,
       responseGraphs,
       selectedResponseId || selectedConceptId || selectedDocumentId,
-      handleNodeClick
+      handleNodeClick,
+      selectedNode,
     );
 
     // Auto-layout if we have nodes
@@ -108,6 +123,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     selectedConceptId,
     selectedDocumentId,
     selectedChatId,
+    selectedNode,
     setNodes,
     setEdges,
     setSelectedConcept,
@@ -119,6 +135,9 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      const path = findPathToRoot(node.id, edges);
+      setSelectedNode(path);
+  
       const [type, id] = node.id.split("-");
       
       if (type === "doc") {
@@ -126,7 +145,6 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       } else if (type === "concept") {
         setSelectedConcept(id);
       } else if (type === "response") {
-        // Find the chatId for this response from the precomputed graphs
         for (const [, graph] of responseGraphs) {
           if (graph.nodes?.some?.((n: any) => n.id === id)) {
             setSelectedChat(graph.anchor.chatId);
@@ -136,18 +154,49 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         }
       }
     },
-    [setSelectedConcept, setSelectedDocument, responseGraphs, setSelectedChat, setLeafForChat]
+    [setSelectedConcept, setSelectedDocument, responseGraphs, setSelectedChat, setLeafForChat, findPathToRoot, edges] // ← Add missing deps
   );
 
-  const onEdgeClick = useCallback(
-    (_evt: React.MouseEvent, edge: any) => {
-      const prompt = (edge?.data?.prompt as string | undefined) ?? (edge?.label as string | undefined);
-      if (!prompt) return;
-      // eslint-disable-next-line no-alert
-      alert(prompt);
-    },
-    []
-  );
+  const enhancedEdges = useMemo(() => {
+    return edges.map(edge => {
+      // FIX: Check if edge connects consecutive nodes in path
+      const isInPath = selectedNode.length > 1 &&
+        selectedNode.includes(edge.source) &&
+        selectedNode.includes(edge.target) &&
+        selectedNode.indexOf(edge.target) === selectedNode.indexOf(edge.source) + 1; // ← Fixed this line
+      
+        return {
+          ...edge,
+          // ONLY show label when edge is in path
+          label: isInPath ? edge.label : undefined,
+          style: {
+            ...edge.style,
+            stroke: isInPath ? "#1e293b" : (edge.style?.stroke || "#e2e8f0"),
+            strokeWidth: isInPath ? 3 : (edge.style?.strokeWidth || 1),
+            opacity: selectedNode.length === 0 ? 1 : (isInPath ? 1 : 0.3),
+          },
+          animated: isInPath,
+          // Show title only when in path
+          ...(isInPath && edge.data?.prompt ? { title: edge.data.prompt } : {}),
+          // Always include label styling so it's ready when label appears
+          labelStyle: {
+            fontSize: 20,
+            fill: "#64748b",
+          },
+          labelBgPadding: [8, 4],
+          labelBgBorderRadius: 4,
+          labelBgStyle: {
+            fill: "#f1f5f9",
+            fillOpacity: 0.9,
+          },
+        };
+    });
+  }, [edges, selectedNode]);
+  
+  // ADD: Clear selection when clicking background
+  const onPaneClick = useCallback(() => {
+    setSelectedNode([]);
+  }, []);
 
   return (
     <div className="h-full w-full">
@@ -158,11 +207,11 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       )}
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={enhancedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onEdgeClick={onEdgeClick}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
         attributionPosition="bottom-left"
