@@ -131,7 +131,8 @@ export function buildGraphElements(
   selectedId?: string | null,
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
   pendingByChat: Record<string, Pending | undefined> = {},
-  onConceptDoubleClick?: (conceptId: string) => void
+  onConceptDoubleClick?: (conceptId: string) => void,
+  selectedNodePath?: string[] // ADD THIS PARAMETER
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
@@ -199,7 +200,8 @@ export function buildGraphElements(
           { x: conceptX + 250, y: docY + idx * 80 },
           selectedId,
           onNodeClick,
-          pendingByChat[responseGraph.anchor.chatId]
+          selectedNodePath, // ADD THIS
+          pendingByChat[responseGraph.anchor.chatId],
         );
         nodes.push(...responseNodes);
         edges.push(...responseEdges);
@@ -215,7 +217,8 @@ export function buildGraphElements(
         { x: 50, y: docY + 150 },
         selectedId,
         onNodeClick,
-        pendingByChat[docResponseGraph.anchor.chatId]
+        selectedNodePath, // ADD THIS
+        pendingByChat[docResponseGraph.anchor.chatId],
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -238,7 +241,7 @@ export function buildGraphElements(
     if (sourceInfo) {
       // Position relative to source response node
       conceptPosition = { 
-        x: sourceInfo.position.x + 350, 
+        x: sourceInfo.position.x + 150, 
         y: sourceInfo.position.y 
       };
       
@@ -296,7 +299,8 @@ export function buildGraphElements(
         responseStartPosition,
         selectedId,
         onNodeClick,
-        pendingByChat[responseGraph.anchor.chatId]
+        selectedNodePath, // ADD THIS
+        pendingByChat[responseGraph.anchor.chatId],
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -358,7 +362,8 @@ export function buildGraphElements(
         { x: 200, y: freeChatY + idx * 150 },
         selectedId,
         onNodeClick,
-        pendingByChat[graph.anchor.chatId]
+        selectedNodePath, // ADD THIS
+        pendingByChat[graph.anchor.chatId],
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -377,6 +382,7 @@ function buildResponseSubgraph(
   startPosition: { x: number; y: number },
   selectedId?: string | null,
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
+  selectedNodePath?: string[] ,
   pending?: Pending
 ): { responseNodes: Node[]; responseEdges: Edge[] } {
   const responseNodes: Node[] = [];
@@ -388,8 +394,15 @@ function buildResponseSubgraph(
   
   // NOTE: no placeholder anymore — clean surface when empty
   
+  // ADD: Check if any node is selected (for hasSelection)
+  const hasSelection = selectedNodePath && selectedNodePath.length > 0;
+  
   graph.nodes.forEach((node) => {
     const nodeId = `response-${node.id}`;
+    
+    // ADD: Check if this specific node is in the selected path
+    const isInPath = selectedNodePath ? selectedNodePath.includes(nodeId) : false;
+    
     responseNodes.push({
       id: nodeId,
       type: "responseNode",
@@ -400,6 +413,8 @@ function buildResponseSubgraph(
         tokenCount: node.tokenCount,
         selected: selectedId === node.id,
         onClick: () => onNodeClick?.(node.id, "response", { chatId: graph.anchor.chatId }),
+        isInPath, // ADD THIS
+        hasSelection, // ADD THIS
       },
     });
     
@@ -419,16 +434,10 @@ function buildResponseSubgraph(
       target: targetId,
       type: "bezier",
       label: edge.label,
-      data: { promptId: edge.promptId, prompt: edge.prompt },
+      data: { promptId: edge.promptId, prompt: edge.prompt, label: edge.label },
       labelStyle: {
         fontSize: 11,
         fill: "#64748b",
-      },
-      labelBgPadding: [8, 4],
-      labelBgBorderRadius: 4,
-      labelBgStyle: {
-        fill: "#f1f5f9",
-        fillOpacity: 0.9,
       },
       style: {
         stroke: "#cbd5e1",
@@ -481,42 +490,6 @@ function buildResponseSubgraph(
  * Auto-layout the graph using dagre
  */
 export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
-  // const dagreGraph = new dagre.graphlib.Graph();
-  // dagreGraph.setDefaultEdgeLabel(() => ({}));
-  // dagreGraph.setGraph({ 
-  //   rankdir: "LR",
-  //   nodesep: 100,
-  //   ranksep: 150,
-  //   marginx: 50,
-  //   marginy: 50,
-  // });
-
-  // nodes.forEach((node) => {
-  //   dagreGraph.setNode(node.id, { 
-  //     width: node.type === "responseNode" ? 20 : 300,
-  //     height: node.type === "responseNode" ? 20 : 100,
-  //   });
-  // });
-
-  // edges.forEach((edge) => {
-  //   dagreGraph.setEdge(edge.source, edge.target);
-  // });
-
-  // dagre.layout(dagreGraph);
-
-  // return nodes.map((node) => {
-  //   const nodeWithPosition = dagreGraph.node(node.id);
-  //   return {
-  //     ...node,
-  //     targetPosition: Position.Left,
-  //     sourcePosition: Position.Right,
-  //     position: {
-  //       x: nodeWithPosition.x - (node.type === "responseNode" ? 10 : 150),
-  //       y: nodeWithPosition.y - (node.type === "responseNode" ? 10 : 50),
-  //     },
-  //   };
-  // });
-
   const nodeMap = new Map<string, NodeWithLayout>(nodes.map(n => [n.id, { ...n, children: [], depth: 0}]));
   const roots: NodeWithLayout[] = [];
 
@@ -553,7 +526,7 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
         }
       } else if (node.type === "conceptNode") {
         const conceptWidth = 200;
-        const conceptCenter = x + (conceptWidth / 2) - 5;
+        const conceptCenter = x + (conceptWidth / 2) - 7;
 
         positionNode(child, conceptCenter, y + 150);
       }
