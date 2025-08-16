@@ -131,7 +131,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       } else if (type === "response") {
         // Find the chatId for this response from the precomputed graphs
         for (const [, graph] of responseGraphs) {
-          if (graph.nodes?.some?.((n) => n.id === id)) {
+          if (graph.nodes?.some?.((n: { id: string }) => n.id === id)) {
             setSelectedChat(graph.anchor.chatId);
             setLeafForChat(graph.anchor.chatId, id ?? null);
             break;
@@ -143,7 +143,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   );
 
   const onEdgeClick = useCallback(
-    (_evt: React.MouseEvent, edge: { data?: { prompt?: string }; label?: string }) => {
+    (_evt: React.MouseEvent, edge: Edge) => {
       const prompt = edge?.data?.prompt ?? edge?.label;
       if (!prompt) return;
       alert(prompt);

@@ -28,7 +28,7 @@ export default function Error({
             Go home
           </Button>
         </div>
-        {process.env.NODE_ENV === "development" && error.message && (
+        {process.env["NODE_ENV"] === "development" && error.message && (
           <div className="mt-8 p-4 bg-red-50 dark:bg-red-950 rounded-lg text-left">
             <p className="text-sm font-mono text-red-600 dark:text-red-400">
               {error.message}

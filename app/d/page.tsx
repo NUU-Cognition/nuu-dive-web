@@ -40,7 +40,6 @@ import {
   Clock,
   Search as SearchIcon,
   Star,
-  StarOff,
   MoreVertical,
   LayoutGrid,
   List as ListIcon,
@@ -86,7 +85,7 @@ export default function DivesListPage() {
 
   // Rename dialog state
   const [renameOpen, setRenameOpen] = useState(false);
-  const [editingDive, setEditingDive] = useState<any | null>(null);
+  const [editingDive, setEditingDive] = useState<{ _id: string; title: string; description?: string } | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
@@ -136,7 +135,7 @@ export default function DivesListPage() {
         const userId = await getOrCreateUser({
           email: session.user.email,
           name: session.user.name || session.user.email.split("@")[0],
-          image: (session.user as any).image,
+          image: (session.user as { image?: string }).image,
         });
         if (!canceled) {
           setCurrentUserId(userId as string);
@@ -148,7 +147,7 @@ export default function DivesListPage() {
     return () => {
       canceled = true;
     };
-  }, [session?.user?.email, session?.user?.name, getOrCreateUser]);
+  }, [session?.user, getOrCreateUser]);
 
   const user = useQuery(
     api.users.get,
@@ -165,7 +164,7 @@ export default function DivesListPage() {
     currentUserId ? { userId: currentUserId as Id<"users"> } : "skip"
   );
   const divesLoading = currentUserId ? convexDives === undefined : true;
-  const dives = convexDives ?? [];
+  const dives = useMemo(() => convexDives ?? [], [convexDives]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -194,7 +193,7 @@ export default function DivesListPage() {
     }
   };
 
-  const openRename = (dive: any) => {
+  const openRename = (dive: { _id: string; title: string; description?: string }) => {
     setEditingDive(dive);
     setEditTitle(dive.title);
     setEditDescription(dive.description || "");

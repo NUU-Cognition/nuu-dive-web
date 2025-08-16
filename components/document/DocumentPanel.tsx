@@ -192,8 +192,8 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
           </div>
         )}
         <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-          <span>{document.responseCount || 0} responses</span>
-          <span>{document.conceptCount || 0} concepts</span>
+          <span>{(document as { responseCount?: number }).responseCount || 0} responses</span>
+          <span>{(document as { conceptCount?: number }).conceptCount || 0} concepts</span>
         </div>
       </div>
       

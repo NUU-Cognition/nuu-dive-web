@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const allowed = (process.env.EXT_ALLOWED_ORIGINS ?? "chrome-extension://*, http://localhost:3000")
+const allowed = (process.env["EXT_ALLOWED_ORIGINS"] ?? "chrome-extension://*, http://localhost:3000")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
@@ -26,7 +26,7 @@ export function corsHeaders(origin?: string | null) {
   
   // Fallback to first allowed origin if no match
   if (!allowOrigin && allowed.length > 0) {
-    allowOrigin = allowed[0].replace(/\*/g, "");
+    allowOrigin = allowed[0]?.replace(/\*/g, "") || "";
   }
   
   return {
@@ -37,7 +37,7 @@ export function corsHeaders(origin?: string | null) {
   };
 }
 
-export function withCorsJson(data: any, origin?: string | null, init?: ResponseInit) {
+export function withCorsJson(data: unknown, origin?: string | null, init?: ResponseInit) {
   const res = NextResponse.json(data, init);
   const headers = corsHeaders(origin);
   Object.entries(headers).forEach(([k, v]) => res.headers.set(k, v));

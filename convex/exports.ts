@@ -1,21 +1,22 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
+import { api } from "./_generated/api";
 
-export const branchToMarkdown = action({
+export const branchToMarkdown: any = action({
   args: {
     chatId: v.id("chats"),
     leafMessageId: v.id("messages"),
   },
   handler: async (ctx, args) => {
     // Get all messages in the chat
-    const allMessages = await ctx.runQuery("messages.listByChat", {
+    const allMessages = await ctx.runQuery(api.messages.listByChat, {
       chatId: args.chatId,
     });
 
     // Get the chat and related concept
-    const chat = await ctx.runQuery("chats.get", { chatId: args.chatId });
+    const chat = await ctx.runQuery(api.chats.get, { chatId: args.chatId });
     const concept = chat?.conceptId 
-      ? await ctx.runQuery("concepts.get", { conceptId: chat.conceptId })
+      ? await ctx.runQuery(api.concepts.get, { conceptId: chat.conceptId })
       : null;
 
     // Build the path from leaf to root
@@ -32,7 +33,7 @@ export const branchToMarkdown = action({
     // Get attachments for messages in path
     const attachments = await Promise.all(
       messagePath.map(async (m) => 
-        ctx.runQuery("attachments.listByMessage", { messageId: m._id })
+        ctx.runQuery(api.attachments.listByMessage, { messageId: m._id })
       )
     );
 

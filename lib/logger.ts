@@ -6,13 +6,13 @@
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 interface LogContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 class Logger {
-  private isDevelopment = process.env.NODE_ENV === "development";
-  private isTest = process.env.NODE_ENV === "test";
-  private isProduction = process.env.NODE_ENV === "production";
+  private isDevelopment = process.env["NODE_ENV"] === "development";
+  private isTest = process.env["NODE_ENV"] === "test";
+  private isProduction = process.env["NODE_ENV"] === "production";
 
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
     const timestamp = new Date().toISOString();
@@ -77,15 +77,14 @@ class Logger {
    * Create a child logger with additional context
    */
   child(context: LogContext): Logger {
-    const parent = this;
     return {
-      debug: (msg: string, ctx?: LogContext) => parent.debug(msg, { ...context, ...ctx }),
-      info: (msg: string, ctx?: LogContext) => parent.info(msg, { ...context, ...ctx }),
-      warn: (msg: string, ctx?: LogContext) => parent.warn(msg, { ...context, ...ctx }),
+      debug: (msg: string, ctx?: LogContext) => this.debug(msg, { ...context, ...ctx }),
+      info: (msg: string, ctx?: LogContext) => this.info(msg, { ...context, ...ctx }),
+      warn: (msg: string, ctx?: LogContext) => this.warn(msg, { ...context, ...ctx }),
       error: (msg: string, err?: Error | unknown, ctx?: LogContext) => 
-        parent.error(msg, err, { ...context, ...ctx }),
-      metric: parent.metric.bind(parent),
-      child: (ctx: LogContext) => parent.child({ ...context, ...ctx }),
+        this.error(msg, err, { ...context, ...ctx }),
+      metric: this.metric.bind(this),
+      child: (ctx: LogContext) => this.child({ ...context, ...ctx }),
     } as Logger;
   }
 }

@@ -33,10 +33,9 @@ export const listByUser = query({
       return [];
     }
     
-    // Get all dives in that workspace
     const dives = await ctx.db
       .query("dives")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", user.workspaceId))
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", user.workspaceId!))
       .order("desc")
       .collect();
     

@@ -1,5 +1,9 @@
 import { type Node, type Edge, Position } from "reactflow";
-import dagre from "dagre";
+
+type NodeWithLayout = Node & { 
+  children: NodeWithLayout[]; 
+  depth: number; 
+};
 
 interface ResponseGraphNode {
   type: "response";
@@ -510,13 +514,16 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
   //   };
   // });
 
-  const nodeMap = new Map(nodes.map(n => [n.id, { ...n, children: [], depth: 0}]));
-  const roots: any[] = [];
+  const nodeMap = new Map<string, NodeWithLayout>(nodes.map(n => [n.id, { ...n, children: [], depth: 0}]));
+  const roots: NodeWithLayout[] = [];
 
   nodes.forEach(node => {
     const incoming = edges.filter(e => e.target === node.id);
     if (incoming.length === 0) {
-      roots.push(nodeMap.get(node.id));
+      const rootNode = nodeMap.get(node.id);
+      if (rootNode) {
+        roots.push(rootNode);
+      }
     }
   });
 
@@ -529,10 +536,10 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
     }
   });
 
-  const positionNode = (node: any, x = 0, y = 0) => {
+  const positionNode = (node: NodeWithLayout, x = 0, y = 0) => {
     node.position = { x, y };
 
-    node.children.forEach((child: any, index: number) => {
+    node.children.forEach((child: NodeWithLayout, index: number) => {
       if (node.type === "documentNode") {
         positionNode(child, x + 350 + (index * 300), y);
       } else if (node.type === "responseNode") {
@@ -575,7 +582,7 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
       ...node, 
       targetPosition: targetPos,
       sourcePosition: sourcePos,
-      position: positioned.position,
+      position: positioned?.position || { x: 0, y: 0 },
     }
   });
 }

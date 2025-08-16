@@ -9,11 +9,11 @@ import { mockAdapter } from "./mockAdapter";
  * - If unset: prefer OpenAI when OPENAI_API_KEY is present, otherwise mock.
  */
 export function getLLM(): LLMAdapter {
-  const envProvider = process.env.LLM_PROVIDER?.toLowerCase();
+  const envProvider = process.env["LLM_PROVIDER"]?.toLowerCase();
   if (envProvider === "openai") return openaiAdapter;
   if (envProvider === "mock") return mockAdapter;
 
-  if (process.env.OPENAI_API_KEY) {
+  if (process.env["OPENAI_API_KEY"]) {
     return openaiAdapter;
   }
   console.warn("[LLM] OPENAI_API_KEY not set. Falling back to mock adapter.");

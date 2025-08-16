@@ -1,9 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { createHash } from "crypto";
 
-function hashToken(token: string, salt: string): string {
-  return createHash("sha256").update(`${token}:${salt}`).digest("hex");
+async function hashToken(token: string, salt: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${token}:${salt}`);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export const create = mutation({
@@ -24,7 +27,7 @@ export const create = mutation({
     
     if (!user) throw new Error("User not found");
     
-    const hash = hashToken(token, salt);
+    const hash = await hashToken(token, salt);
     const tokenId = await ctx.db.insert("extensionTokens", {
       userId: user._id,
       label,
@@ -94,7 +97,7 @@ export const resolveUserByToken = query({
     salt: v.string() 
   },
   handler: async (ctx, { token, salt }) => {
-    const hash = hashToken(token, salt);
+    const hash = await hashToken(token, salt);
     
     const tokenRecord = await ctx.db
       .query("extensionTokens")
@@ -116,7 +119,7 @@ export const touch = mutation({
     salt: v.string() 
   },
   handler: async (ctx, { token, salt }) => {
-    const hash = hashToken(token, salt);
+    const hash = await hashToken(token, salt);
     
     const tokenRecord = await ctx.db
       .query("extensionTokens")

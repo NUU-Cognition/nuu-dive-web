@@ -29,7 +29,7 @@ import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
 
 function DiveWorkspaceContent() {
   const params = useParams();
-  const diveId = params.diveId as string;
+  const diveId = params["diveId"] as string;
   const { status } = useSession();
   const router = useRouter();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
@@ -319,7 +319,7 @@ function DiveWorkspaceContent() {
 
 export default function DiveWorkspacePage() {
   const params = useParams();
-  const diveId = params.diveId as string;
+  const diveId = params["diveId"] as string;
   return (
     <WorkspaceProvider diveId={diveId}>
       <DiveWorkspaceContent />

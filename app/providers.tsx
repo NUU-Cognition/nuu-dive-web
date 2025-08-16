@@ -4,7 +4,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { SessionProvider } from "next-auth/react";
 import { type ReactNode, useMemo } from "react";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const convexUrl = process.env["NEXT_PUBLIC_CONVEX_URL"];
 
 export function Providers({ children }: { children: ReactNode }) {
   if (!convexUrl) {

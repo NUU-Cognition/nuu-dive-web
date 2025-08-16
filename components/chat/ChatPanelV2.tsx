@@ -80,11 +80,11 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     userId: currentUserId || "",
     diveId,
   });
-  const messages = rawMessages ?? [];
+  const messages = useMemo(() => rawMessages ?? [], [rawMessages]);
   const messagesLoading = rawMessages === undefined;
 
   // Build indices for efficient lookups
-  const byId = useMemo(() => new Map(messages.map((m) => [m._id, m])), [messages]);
+  const byId = useMemo(() => new Map<string, typeof messages[0]>(messages.map((m: typeof messages[0]) => [m._id, m])), [messages]);
   
 
   // Compute default leaf - prefer latest assistant, then latest user, then latest message
@@ -114,13 +114,13 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
   // Separate inherited and current messages
   const { inheritedMessages, currentMessages } = useMemo(() => {
-    const inherited = messages.filter((m) => (m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
-    const current = messages.filter((m) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
+    const inherited = messages.filter((m: typeof messages[0]) => (m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
+    const current = messages.filter((m: typeof messages[0]) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
     return { inheritedMessages: inherited, currentMessages: current };
   }, [messages]);
 
   // Path to the current leaf (only from current messages)
-  const currentByIdMap = useMemo(() => new Map(currentMessages.map((m) => [m._id, m])), [currentMessages]);
+  const currentByIdMap = useMemo(() => new Map<string, typeof currentMessages[0]>(currentMessages.map((m: typeof currentMessages[0]) => [m._id, m])), [currentMessages]);
   
   const path = useMemo(() => {
     if (!leafId) return [...inheritedMessages, ...currentMessages];
@@ -140,7 +140,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   
   // For determining parent of new messages, only consider current messages (not inherited)
   const currentPathLeaf = currentMessages.length > 0 ? 
-    currentMessages.find(m => m._id === leafId) || currentMessages[currentMessages.length - 1] :
+    currentMessages.find((m: typeof currentMessages[0]) => m._id === leafId) || currentMessages[currentMessages.length - 1] :
     undefined;
   
   // Check if the path leaf is a user message that needs a response
@@ -149,7 +149,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     if (pathLeaf.role !== "user") return false;
     // Check if there's already an assistant response to this user message
     const hasResponse = messages.some(
-      m => m.role === "assistant" && m.parentMessageId === pathLeaf._id
+      (m: typeof messages[0]) => m.role === "assistant" && m.parentMessageId === pathLeaf._id
     );
     return !hasResponse;
   }, [pathLeaf, messages]);
@@ -284,7 +284,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     // Send to streaming API with updated path context
     const newPath = [...path];
     // Only add the new message if it's not already in the path
-    if (!path.some(m => m._id === newUserMessage._id)) {
+    if (!path.some((m: typeof path[0]) => m._id === newUserMessage._id)) {
       newPath.push(newUserMessage as typeof path[number]);
     }
 
@@ -391,7 +391,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       
       // Find which message contains the selected text
       const range = selection.getRangeAt(0);
-      let element = range.commonAncestorContainer;
+      let element: Node | null = range.commonAncestorContainer;
       
       // Traverse up the DOM to find the message container
       while (element && element.nodeType !== Node.ELEMENT_NODE) {
@@ -406,7 +406,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         const messageId = (element as Element).getAttribute('data-message-id');
         
         // Find the full message object
-        const sourceMessage = messages.find(m => m._id === messageId);
+        const sourceMessage = messages.find((m: typeof messages[0]) => m._id === messageId);
         if (sourceMessage) {
           setSelectedText(selectedText);
           setSelectedMessageForConcept({
@@ -476,7 +476,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                 Inherited Context ({inheritedMessages.length} messages)
               </div>
-              {inheritedMessages.map((node, index: number) => (
+              {inheritedMessages.map((node: typeof inheritedMessages[0], index: number) => (
                 <div key={`inherited-${node.inheritedFromChatId || node.chatId}-${node._id}-${index}`} className="opacity-75">
                   <MessageItem
                     message={node}

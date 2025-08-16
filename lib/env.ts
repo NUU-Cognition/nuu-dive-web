@@ -25,20 +25,20 @@ export const ENV = (() => {
     console.error(parsed.error.format());
     
     // In development, provide helpful error messages
-    if (process.env.NODE_ENV === "development") {
+    if (process.env["NODE_ENV"] === "development") {
       console.error("\n📝 Missing or invalid environment variables detected.");
       console.error("Please check your .env.local file against .env.example");
     }
     
     // Don't throw in development to allow easier onboarding
-    if (process.env.NODE_ENV === "production") {
+    if (process.env["NODE_ENV"] === "production") {
       throw new Error("Invalid environment variables");
     }
     
     // Return safe defaults for development
     return schema.parse({
-      NODE_ENV: process.env.NODE_ENV || "development",
-      NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL || "http://localhost:3210",
+      NODE_ENV: process.env["NODE_ENV"] || "development",
+      NEXT_PUBLIC_CONVEX_URL: process.env["NEXT_PUBLIC_CONVEX_URL"] || "http://localhost:3210",
       DEMO_MODE: "1",
       ALLOW_DEV_NO_AUTH: "1",
     });
