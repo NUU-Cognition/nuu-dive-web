@@ -78,7 +78,7 @@ export const create = mutation({
         chatId,
         parentMessageId: noteId,
         role: "user",
-        content: args.firstQuestion,
+        content: args.firstQuestion.trim(),
         createdBy: args.userId,
         createdAt: createdAt + 1, // Ensure it comes after the note
         depth: 1,

@@ -524,7 +524,7 @@ export const listByConceptChat = query({
   handler: async (ctx, args) => {
     const chat = await ctx.db.get(args.chatId);
     if (!chat) {
-      throw new Error("Chat not found");
+      return { hasInheritedContext: false, inheritedMessages: [], currentMessages: [] };
     }
     
     // Get current chat messages
@@ -538,20 +538,23 @@ export const listByConceptChat = query({
     const activeCurrentMessages = currentMessages.filter((m) => !m.deletedAt);
     
     // Check if this is a concept-anchored chat with inherited context
-    if (!chat.conceptId) {
+    // Support both legacy conceptId field and new anchorType/anchorId pattern
+    const conceptId = chat.conceptId || (chat.anchorType === "concept" ? chat.anchorId : null);
+    
+    if (!conceptId) {
       return {
+        hasInheritedContext: false,
         inheritedMessages: [],
         currentMessages: activeCurrentMessages,
-        hasInheritedContext: false,
       };
     }
     
-    const concept = await ctx.db.get(chat.conceptId);
-    if (!concept?.sourceMessageId) {
+    const concept = await ctx.db.get(conceptId);
+    if (!concept || !('sourceMessageId' in concept) || !concept.sourceMessageId) {
       return {
+        hasInheritedContext: false,
         inheritedMessages: [],
         currentMessages: activeCurrentMessages,
-        hasInheritedContext: false,
       };
     }
     
@@ -559,28 +562,27 @@ export const listByConceptChat = query({
     const sourceMessage = await ctx.db.get(concept.sourceMessageId);
     if (!sourceMessage) {
       return {
+        hasInheritedContext: false,
         inheritedMessages: [],
         currentMessages: activeCurrentMessages,
-        hasInheritedContext: false,
       };
     }
     
     // Build complete inheritance chain recursively
     const inheritedMessages = await buildCompleteInheritanceChain(ctx, sourceMessage);
     
-    // Mark all inherited messages
-    const markedInheritedMessages = inheritedMessages.map((m) => ({
+    // Mark all inherited messages and ensure they have proper depth
+    const markedInheritedMessages = inheritedMessages.map((m, index) => ({
       ...m,
       isInherited: true,
+      depth: m.depth ?? index, // Fallback depth if missing
       inheritedFromChatId: m.chatId, // Keep original chat ID for each message
     }));
     
     return {
+      hasInheritedContext: true,
       inheritedMessages: markedInheritedMessages,
       currentMessages: activeCurrentMessages,
-      hasInheritedContext: true,
-      conceptId: chat.conceptId,
-      sourceMessageId: concept.sourceMessageId,
     };
   },
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +48,15 @@ export default function CreateConceptDialog({
   const [firstPrompt, setFirstPrompt] = useState(initialFirstPrompt);
   const [isCreating, setIsCreating] = useState(false);
 
+  const firstPromptIsValid = useMemo(
+    () => Boolean(firstPrompt.trim()),
+    [firstPrompt]
+  );
+  const snippetIsValid = useMemo(
+    () => Boolean(conceptSnippet.trim()),
+    [conceptSnippet]
+  );
+
   // Reset form when dialog opens/closes or initial values change
   useEffect(() => {
     if (open) {
@@ -58,7 +67,7 @@ export default function CreateConceptDialog({
   }, [open, initialTitle, initialSnippet, initialFirstPrompt]);
 
   const handleCreateConcept = async () => {
-    if (!conceptSnippet.trim()) return;
+    if (!snippetIsValid || !firstPromptIsValid) return;
     
     setIsCreating(true);
     
@@ -152,11 +161,12 @@ export default function CreateConceptDialog({
           <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleCreateConcept} 
-            disabled={!conceptSnippet.trim() || isCreating}
+          <Button
+            onClick={handleCreateConcept}
+            disabled={!snippetIsValid || !firstPromptIsValid || isCreating}
+            title={!firstPromptIsValid ? "Enter a first prompt to start the chat" : undefined}
           >
-            {isCreating ? "Creating..." : "Create Concept"}
+            {isCreating ? "Creating..." : "Create & Ask"}
           </Button>
         </DialogFooter>
       </DialogContent>
