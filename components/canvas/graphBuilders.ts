@@ -42,6 +42,7 @@ interface Concept {
   _id: string;
   title: string;
   snippet: string;
+  note?: string;
   sourceType: "url" | "pdf" | "chat";
   documentId?: string;
   sourceMessageId?: string;
@@ -176,6 +177,7 @@ export function buildGraphElements(
           snippet: concept.snippet,
           sourceType: concept.sourceType,
           selected: selectedId === concept._id,
+          hasNote: concept.note && concept.note.trim().length > 0,
           onDoubleClick: () => onConceptDoubleClick?.(concept._id),
         },
       });
@@ -281,6 +283,7 @@ export function buildGraphElements(
         snippet: concept.snippet,
         sourceType: concept.sourceType,
         selected: selectedId === concept._id,
+        hasNote: concept.note && concept.note.trim().length > 0,
         onDoubleClick: () => onConceptDoubleClick?.(concept._id),
       },
     });

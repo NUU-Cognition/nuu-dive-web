@@ -21,8 +21,6 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Spinner } from "@/components/ui/spinner";
-import { ConceptNoteEditor } from "@/components/concept/ConceptNoteEditor";
-import { getEdgePolyfilledModules } from "next/dist/build/webpack/plugins/middleware-plugin";
 
 interface CanvasViewProps {
   diveId: string;
@@ -50,9 +48,6 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     getLeafForChat,
     pendingByChat,
     openConceptNote,
-    editingConceptNoteId,
-    setEditingConceptNoteId,
-    updateConcept,
   } = useWorkspace();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -74,12 +69,12 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
   const findPathToRoot = useCallback((clickedNodeId: string, edges: Edge[]) => {
     const path: string[] = [];
-    let currentNodeId = clickedNodeId;
+    let currentNodeId: string | undefined = clickedNodeId;
 
     while (currentNodeId) {
       path.unshift(currentNodeId);
       const parentEdge = edges.find(e => e.target === currentNodeId);
-      currentNodeId = parentEdge?.source || undefined;
+      currentNodeId = parentEdge?.source;
     }
     return path;
   }, []);
@@ -193,7 +188,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
             fontSize: 20,
             fill: "#64748b",
           },
-          labelBgPadding: [8, 4],
+          labelBgPadding: [8, 4] as [number, number],
           labelBgBorderRadius: 4,
           labelBgStyle: {
             fill: "#f1f5f9",
@@ -256,19 +251,6 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
             </p>
           </div>
         </div>
-      )}
-
-      {/* Note Editor */}
-      {editingConceptNoteId && (
-        <ConceptNoteEditor
-          isOpen={true}
-          onClose={() => setEditingConceptNoteId(null)}
-          conceptTitle={concepts.find(c => c._id === editingConceptNoteId)?.title || "Unknown Concept"}
-          note={concepts.find(c => c._id === editingConceptNoteId)?.note || ""}
-          onSave={async (note) => {
-            await updateConcept(editingConceptNoteId, { note });
-          }}
-        />
       )}
     </div>
   );

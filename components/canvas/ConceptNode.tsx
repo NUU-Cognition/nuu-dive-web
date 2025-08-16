@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position } from "reactflow";
-import { FileText, Link2, MessageSquare } from "lucide-react";
+import { FileText, Link2, MessageSquare, StickyNote } from "lucide-react";
 
 interface ConceptNodeProps {
   data: {
@@ -10,6 +10,7 @@ interface ConceptNodeProps {
     snippet: string;
     sourceType: "url" | "pdf" | "chat";
     selected: boolean;
+    hasNote?: boolean;
     onDoubleClick?: () => void;
   };
 }
@@ -28,10 +29,10 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
         className="!bg-primary"
       />
       <div
-        className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all ${
+        className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all cursor-pointer group ${
           data.selected 
             ? "border-primary ring-2 ring-primary/20" 
-            : "border-border hover:border-primary/50"
+            : "border-border hover:border-primary/50 hover:shadow-md"
         }`}
         style={{ width: 200 }}
         onDoubleClick={data.onDoubleClick}
@@ -55,6 +56,19 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
               {data.snippet}
             </p>
           </div>
+          {/* Visual indicator for note functionality */}
+          <div className="mt-0.5" title={data.hasNote ? "Has note" : "No note yet"}>
+            {data.hasNote ? (
+              <StickyNote className="h-3 w-3 text-blue-500 fill-current" />
+            ) : (
+              <StickyNote className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity" />
+            )}
+          </div>
+        </div>
+        
+        {/* Subtle hint text that appears on hover */}
+        <div className="mt-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-70 transition-opacity">
+          Double-click to edit note
         </div>
       </div>
       <Handle 

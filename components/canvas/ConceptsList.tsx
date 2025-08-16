@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, FileText, Link2, Hash } from "lucide-react";
+import { Plus, Search, FileText, Link2, Hash, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +17,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ConceptNoteEditor } from "@/components/concept/ConceptNoteEditor";
 
 interface ConceptsListProps {
   diveId: string;
@@ -27,14 +26,11 @@ export default function ConceptsList({}: ConceptsListProps) {
   const { 
     concepts, 
     addConcept, 
-    updateConcept,
     selectedConceptId, 
     setSelectedConcept,
     conceptsLoading,
     setSelectedChat,
     setLeafForChat,
-    editingConceptNoteId,
-    setEditingConceptNoteId,
     openConceptNote
   } = useWorkspace();
   
@@ -86,7 +82,15 @@ export default function ConceptsList({}: ConceptsListProps) {
       {/* Header */}
       <div className="border-b p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Concepts</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Concepts</h2>
+            <div className="group relative">
+              <StickyNote className="h-3 w-3 text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                Double-click any concept to edit its note
+              </div>
+            </div>
+          </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" variant="ghost">
@@ -194,7 +198,7 @@ export default function ConceptsList({}: ConceptsListProps) {
                 key={concept._id}
                 onClick={() => setSelectedConcept(concept._id)}
                 onDoubleClick={() => openConceptNote(concept._id)}
-                className={`w-full rounded-lg p-3 text-left transition-colors hover:bg-accent ${
+                className={`w-full rounded-lg p-3 text-left transition-all group hover:bg-accent hover:shadow-sm ${
                   selectedConceptId === concept._id ? "bg-accent" : ""
                 }`}
                 title="Click to select, double-click to edit note"
@@ -210,15 +214,31 @@ export default function ConceptsList({}: ConceptsListProps) {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-sm truncate">
-                      {concept.title}
-                    </h3>
+                    <div className="flex items-start justify-between">
+                      <h3 className="font-medium text-sm truncate flex-1">
+                        {concept.title}
+                      </h3>
+                      {/* Visual indicator for note functionality */}
+                      <div className="ml-2 flex items-center gap-1" title={concept.note && concept.note.trim() ? "Has note" : "No note yet"}>
+                        {concept.note && concept.note.trim() ? (
+                          <StickyNote className="h-3 w-3 text-blue-500 fill-current" />
+                        ) : (
+                          <StickyNote className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity" />
+                        )}
+                      </div>
+                    </div>
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                       {concept.snippet}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {formatDistanceToNow(concept.createdAt, { addSuffix: true })}
-                    </p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(concept.createdAt, { addSuffix: true })}
+                      </p>
+                      {/* Subtle hint text that appears on hover */}
+                      <p className="text-xs text-muted-foreground opacity-0 group-hover:opacity-70 transition-opacity">
+                        Double-click for note
+                      </p>
+                    </div>
                   </div>
                 </div>
               </button>
@@ -226,19 +246,6 @@ export default function ConceptsList({}: ConceptsListProps) {
           </div>
         )}
       </div>
-
-      {/* Note Editor */}
-      {editingConceptNoteId && (
-        <ConceptNoteEditor
-          isOpen={true}
-          onClose={() => setEditingConceptNoteId(null)}
-          conceptTitle={concepts.find(c => c._id === editingConceptNoteId)?.title || "Unknown Concept"}
-          note={concepts.find(c => c._id === editingConceptNoteId)?.note || ""}
-          onSave={async (note) => {
-            await updateConcept(editingConceptNoteId, { note });
-          }}
-        />
-      )}
     </div>
   );
 }
