@@ -15,6 +15,7 @@
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }
