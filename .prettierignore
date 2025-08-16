@@ -1,0 +1,13 @@
+.next
+node_modules
+coverage
+playwright-report
+__deprecated
+*.min.js
+*.min.css
+dist
+build
+.convex
+convex/_generated
+package-lock.json
+pnpm-lock.yaml

@@ -10,15 +10,16 @@ import { authOptions } from "@/lib/auth";
 import { getLLM } from "@/lib/llm/getAdapter";
 import { assembleContext } from "@/lib/context/assembleContext";
 import { encodeSSE } from "@/lib/llm/utils";
+import { ENV } from "@/lib/env";
 
 export async function POST(req: NextRequest) {
   try {
-    // Check authentication (allow bypass in dev)
+    // Check authentication (allow bypass in demo mode or explicit dev flag)
     const session = await getServerSession(authOptions);
-    const allowDevNoAuth = process.env.ALLOW_DEV_NO_AUTH === "1" || process.env.NODE_ENV === "development";
-    if (!session && !allowDevNoAuth) {
-      console.log("Authentication required. Set ALLOW_DEV_NO_AUTH=1 in .env.local for development.");
-      return new NextResponse("Unauthorized - Set ALLOW_DEV_NO_AUTH=1 for development", { status: 401 });
+    const allowNoAuth = ENV.DEMO_MODE === "1" || (ENV.NODE_ENV === "development" && ENV.ALLOW_DEV_NO_AUTH === "1");
+    if (!session && !allowNoAuth) {
+      console.log("Authentication required. Enable DEMO_MODE or set ALLOW_DEV_NO_AUTH=1 for development.");
+      return new NextResponse("Unauthorized - Authentication required", { status: 401 });
     }
 
     const body = await req.json();
