@@ -198,8 +198,8 @@ export function buildGraphElements(
           { x: conceptX + 250, y: docY + idx * 80 },
           selectedId,
           onNodeClick,
+          selectedNodePath, // ADD THIS
           pendingByChat[responseGraph.anchor.chatId],
-          selectedNodePath // ADD THIS
         );
         nodes.push(...responseNodes);
         edges.push(...responseEdges);
@@ -215,8 +215,8 @@ export function buildGraphElements(
         { x: 50, y: docY + 150 },
         selectedId,
         onNodeClick,
+        selectedNodePath, // ADD THIS
         pendingByChat[docResponseGraph.anchor.chatId],
-        selectedNodePath // ADD THIS
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -239,7 +239,7 @@ export function buildGraphElements(
     if (sourceInfo) {
       // Position relative to source response node
       conceptPosition = { 
-        x: sourceInfo.position.x + 350, 
+        x: sourceInfo.position.x + 150, 
         y: sourceInfo.position.y 
       };
       
@@ -296,8 +296,8 @@ export function buildGraphElements(
         responseStartPosition,
         selectedId,
         onNodeClick,
+        selectedNodePath, // ADD THIS
         pendingByChat[responseGraph.anchor.chatId],
-        selectedNodePath // ADD THIS
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -359,8 +359,8 @@ export function buildGraphElements(
         { x: 200, y: freeChatY + idx * 150 },
         selectedId,
         onNodeClick,
+        selectedNodePath, // ADD THIS
         pendingByChat[graph.anchor.chatId],
-        selectedNodePath // ADD THIS
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -523,7 +523,7 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
         }
       } else if (node.type === "conceptNode") {
         const conceptWidth = 200;
-        const conceptCenter = x + (conceptWidth / 2) - 5;
+        const conceptCenter = x + (conceptWidth / 2) - 7;
 
         positionNode(child, conceptCenter, y + 150);
       }
