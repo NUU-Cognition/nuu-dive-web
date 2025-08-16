@@ -3,12 +3,23 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { GitBranch, Plus, ChevronLeft, Settings, PanelLeftClose, PanelLeft } from "lucide-react";
+import { GitBranch, Plus, ChevronLeft, Settings, PanelLeftClose, PanelLeft, Link2, FileText } from "lucide-react";
 import Link from "next/link";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import ConceptsList from "@/components/canvas/ConceptsList";
 import ChatPanelV2 from "@/components/chat/ChatPanelV2";
 import DocumentPanel from "@/components/document/DocumentPanel";
@@ -21,7 +32,16 @@ function DiveWorkspaceContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
-  const { selectedConceptId, selectedChatId, selectedDocumentId, setSelectedChat, setSelectedDocument } = useWorkspace();
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [newDocumentUrl, setNewDocumentUrl] = useState("");
+  const [newDocumentTitle, setNewDocumentTitle] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const { selectedConceptId, selectedChatId, selectedDocumentId, setSelectedChat, setSelectedDocument, addDocument } = useWorkspace();
+  
+  // Convex mutations
+  const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
 
   // Get dive details from Convex
   const dive = useQuery(
@@ -70,6 +90,69 @@ function DiveWorkspaceContent() {
       : "Deep learning architectures and optimization techniques",
   };
 
+  const handleAddUrl = async () => {
+    if (!newDocumentUrl.trim() || !newDocumentTitle.trim()) return;
+    
+    try {
+      const documentId = await addDocument({
+        kind: "url",
+        title: newDocumentTitle,
+        url: newDocumentUrl,
+      });
+      
+      setSelectedDocument(documentId);
+      setUrlDialogOpen(false);
+      setNewDocumentUrl("");
+      setNewDocumentTitle("");
+    } catch (error) {
+      console.error("Failed to add URL document:", error);
+    }
+  };
+
+  const handleAddPdf = async () => {
+    if (!pdfFile || !newDocumentTitle.trim()) return;
+    
+    setIsUploadingPdf(true);
+    
+    try {
+      // Step 1: Get an upload URL from Convex
+      const uploadUrl = await generateUploadUrl();
+      
+      // Step 2: Upload the file to the URL
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": pdfFile.type },
+        body: pdfFile,
+      });
+      
+      if (!result.ok) {
+        throw new Error("Failed to upload PDF");
+      }
+      
+      const { storageId } = await result.json();
+      
+      // Step 3: Create the document with the storage ID
+      const documentId = await addDocument({
+        kind: "pdf",
+        title: newDocumentTitle,
+        pdfId: storageId,
+        pdfMeta: {
+          fileName: pdfFile.name,
+        },
+      });
+      
+      setSelectedDocument(documentId);
+      setPdfDialogOpen(false);
+      setPdfFile(null);
+      setNewDocumentTitle("");
+    } catch (error) {
+      console.error("Failed to add PDF document:", error);
+      alert("Failed to upload PDF. Please try again.");
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col">
         {/* Header */}
@@ -97,6 +180,104 @@ function DiveWorkspaceContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Add URL Dialog */}
+            <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Link2 className="h-4 w-4 mr-1" />
+                  Add URL
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add URL Document</DialogTitle>
+                  <DialogDescription>
+                    Add a web page or online document to your dive
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="url">URL</Label>
+                    <Input
+                      id="url"
+                      placeholder="https://example.com/article"
+                      value={newDocumentUrl}
+                      onChange={(e) => setNewDocumentUrl(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Title</Label>
+                    <Input
+                      id="title"
+                      placeholder="Document title"
+                      value={newDocumentTitle}
+                      onChange={(e) => setNewDocumentTitle(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setUrlDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleAddUrl}
+                    disabled={!newDocumentUrl.trim() || !newDocumentTitle.trim()}
+                  >
+                    Add Document
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Add PDF Dialog */}
+            <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-1" />
+                  Add PDF
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add PDF Document</DialogTitle>
+                  <DialogDescription>
+                    Upload a PDF document to your dive
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pdf">PDF File</Label>
+                    <Input
+                      id="pdf"
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pdf-title">Title</Label>
+                    <Input
+                      id="pdf-title"
+                      placeholder="Document title"
+                      value={newDocumentTitle}
+                      onChange={(e) => setNewDocumentTitle(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setPdfDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleAddPdf}
+                    disabled={!pdfFile || !newDocumentTitle.trim() || isUploadingPdf}
+                  >
+                    {isUploadingPdf ? "Uploading..." : "Add PDF"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
             <Button variant="ghost" size="sm">
               <Settings className="h-4 w-4" />
             </Button>

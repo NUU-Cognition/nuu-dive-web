@@ -9,6 +9,9 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStreamChat } from "@/hooks/useStreamChat";
+import dynamic from "next/dynamic";
+
+const PdfViewer = dynamic(() => import("./PdfViewer"), { ssr: false });
 
 interface DocumentPanelProps {
   documentId: string;
@@ -164,13 +167,35 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
         </div>
       </div>
       
-      {/* Existing responses preview */}
-      {documentChats && documentChats.length > 0 && (
-        <div className="flex-1 overflow-y-auto p-4">
-          <p className="text-xs text-muted-foreground mb-2">Previous questions:</p>
-          {/* TODO: Show message tree here */}
-        </div>
-      )}
+      {/* Middle content - PDF viewer or existing responses */}
+      <div className="flex-1 overflow-hidden">
+        {document.kind === "pdf" ? (
+          <div className="h-full">
+            <PdfViewer
+              documentId={documentId}
+              fileId={(document as any).pdfId}
+              externalUrl={!(document as any).pdfId ? document.url : undefined}
+              fileName={(document as any)?.pdfMeta?.fileName || document.title}
+              existingHighlights={
+                // Get highlights from concepts tied to this document
+                []  // TODO: Query concepts and extract their highlights
+              }
+            />
+          </div>
+        ) : (
+          // Previous questions area for URLs
+          documentChats && documentChats.length > 0 ? (
+            <div className="p-4 overflow-y-auto h-full">
+              <p className="text-xs text-muted-foreground mb-2">Previous questions:</p>
+              {/* TODO: Show message tree here */}
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Ask something about this document…
+            </div>
+          )
+        )}
+      </div>
       
       {/* Streaming response */}
       {streamingMessage && (
