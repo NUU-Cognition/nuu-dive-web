@@ -28,6 +28,11 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
         position={Position.Top}
         className="!bg-transparent !border-0 !w-3 !h-3"
       />
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        className="!bg-primary"
+      />
 
       {/* Response dot */}
       <div
@@ -45,16 +50,10 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
       <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 
                       opacity-0 group-hover:opacity-100 pointer-events-none
                       transition-opacity z-50">
-        <div className="bg-popover text-popover-foreground rounded-md
-                        shadow-md border px-3 py-2 max-w-[280px]">
-          <p className="text-xs whitespace-pre-wrap line-clamp-4">
+        <div className="glass-frosted min-w-[100px] min-h-[50px] p-10">
+          <p className="text-base text-ice-500 whitespace-pre-wrap line-clamp-4">
             {preview}
           </p>
-          {data.tokenCount && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {data.tokenCount} tokens
-            </p>
-          )}
         </div>
       </div>
 
@@ -63,6 +62,11 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
         type="source"
         position={Position.Bottom}
         className="!bg-transparent !border-0 !w-3 !h-3"
+      />
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        className="!bg-primary"
       />
     </div>
   );

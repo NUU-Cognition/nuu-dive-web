@@ -57,3 +57,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Glassmorphism */
+.glass-frosted {
+    --ice-50: 248 250 252;
+    --ice-100: 241 245 249;
+    --ice-200: 226 232 240;
+    --ice-300: 203 213 225;
+
+  background: rgb(var(--ice-400));
+  backdrop-filter: blur(5px);
+  padding: 10px;
+  margin: 10px;
+  border-radius: 10px;
+  transition: all 0.1 ease;
+  transform: translateY(-2px);
+  cursor: pointer;
+}
+
+
+

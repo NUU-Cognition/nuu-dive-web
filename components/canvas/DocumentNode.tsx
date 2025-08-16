@@ -39,6 +39,11 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
         position={Position.Top}
         className="!bg-primary !w-2 !h-2"
       />
+      <Handle 
+        type="target" 
+        position={Position.Right} 
+        className="!bg-primary"
+      />
 
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
@@ -99,6 +104,11 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
         type="source"
         position={Position.Bottom}
         className="!bg-primary !w-2 !h-2"
+      />
+      <Handle 
+        type="source" 
+        position={Position.Left} 
+        className="!bg-primary"
       />
     </div>
   );

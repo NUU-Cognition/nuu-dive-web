@@ -98,7 +98,9 @@ export function buildGraphElements(
       edges.push({
         id: `${nodeId}-${conceptNodeId}`,
         source: nodeId,
+        sourceHandle: "right",
         target: conceptNodeId,
+        targetHandle: "left",
         type: "smoothstep",
         style: { stroke: "#94a3b8", strokeWidth: 1 },
       });
@@ -315,7 +317,7 @@ function buildResponseSubgraph(
       id: `${sourceId}-${targetId}`,
       source: sourceId,
       target: targetId,
-      type: "smoothstep",
+      type: "bezier",
       label: edge.label,
       data: { promptId: edge.promptId, prompt: edge.prompt },
       labelStyle: {
@@ -342,39 +344,108 @@ function buildResponseSubgraph(
  * Auto-layout the graph using dagre
  */
 export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
-  const dagreGraph = new dagre.graphlib.Graph();
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
-  dagreGraph.setGraph({ 
-    rankdir: "TB",
-    nodesep: 80,
-    ranksep: 100,
-    marginx: 50,
-    marginy: 50,
+  // const dagreGraph = new dagre.graphlib.Graph();
+  // dagreGraph.setDefaultEdgeLabel(() => ({}));
+  // dagreGraph.setGraph({ 
+  //   rankdir: "LR",
+  //   nodesep: 100,
+  //   ranksep: 150,
+  //   marginx: 50,
+  //   marginy: 50,
+  // });
+
+  // nodes.forEach((node) => {
+  //   dagreGraph.setNode(node.id, { 
+  //     width: node.type === "responseNode" ? 20 : 300,
+  //     height: node.type === "responseNode" ? 20 : 100,
+  //   });
+  // });
+
+  // edges.forEach((edge) => {
+  //   dagreGraph.setEdge(edge.source, edge.target);
+  // });
+
+  // dagre.layout(dagreGraph);
+
+  // return nodes.map((node) => {
+  //   const nodeWithPosition = dagreGraph.node(node.id);
+  //   return {
+  //     ...node,
+  //     targetPosition: Position.Left,
+  //     sourcePosition: Position.Right,
+  //     position: {
+  //       x: nodeWithPosition.x - (node.type === "responseNode" ? 10 : 150),
+  //       y: nodeWithPosition.y - (node.type === "responseNode" ? 10 : 50),
+  //     },
+  //   };
+  // });
+
+  const nodeMap = new Map(nodes.map(n => [n.id, { ...n, children: [], depth: 0}]));
+  const roots: any[] = [];
+
+  nodes.forEach(node => {
+    const incoming = edges.filter(e => e.target === node.id);
+    if (incoming.length === 0) {
+      roots.push(nodeMap.get(node.id));
+    }
   });
 
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { 
-      width: node.type === "responseNode" ? 20 : 300,
-      height: node.type === "responseNode" ? 20 : 100,
+  edges.forEach(edge => {
+    const parent = nodeMap.get(edge.source);
+    const child = nodeMap.get(edge.target);
+    if (parent && child) {
+      parent.children.push(child);
+      child.depth = parent.depth + 1;
+    }
+  });
+
+  const positionNode = (node: any, x = 0, y = 0) => {
+    node.position = { x, y };
+
+    node.children.forEach((child: any, index: number) => {
+      if (node.type === "documentNode") {
+        positionNode(child, x + 350 + (index * 300), y);
+      } else if (node.type === "responseNode") {
+        if (index === 0) {
+          positionNode(child, x, y + 120); // First response goes down
+        } else {
+          positionNode(child, x + (index * 150), y + 120); // Others go right
+        }
+      } else if (node.type === "conceptNode") {
+        const conceptWidth = 200;
+        const conceptCenter = x + (conceptWidth / 2) - 5;
+
+        positionNode(child, conceptCenter, y + 150);
+      }
     });
+  };
+
+  roots.forEach((root, index) => {
+    positionNode(root, 50, index * 200 + 50);
   });
 
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
+  return nodes.map(node => {
+    const positioned = nodeMap.get(node.id);
+    const nodeType = node.type;
 
-  dagre.layout(dagreGraph);
+    let targetPos, sourcePos;
 
-  return nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
+    if (nodeType === "documentNode") {
+      targetPos = Position.Right;
+      sourcePos = Position.Left;  
+    } else if (nodeType === "conceptNode") {
+      targetPos = Position.Right;
+      sourcePos = Position.Left;
+    } else if (nodeType === "responseNode") {
+      targetPos = Position.Top;
+      sourcePos = Position.Bottom
+    }
+
     return {
-      ...node,
-      targetPosition: Position.Top,
-      sourcePosition: Position.Bottom,
-      position: {
-        x: nodeWithPosition.x - (node.type === "responseNode" ? 10 : 150),
-        y: nodeWithPosition.y - (node.type === "responseNode" ? 10 : 50),
-      },
-    };
+      ...node, 
+      targetPosition: targetPos,
+      sourcePosition: sourcePos,
+      position: positioned.position,
+    }
   });
 }
