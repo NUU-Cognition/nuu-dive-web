@@ -21,7 +21,6 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Spinner } from "@/components/ui/spinner";
-import { getEdgePolyfilledModules } from "next/dist/build/webpack/plugins/middleware-plugin";
 
 interface CanvasViewProps {
   diveId: string;
@@ -74,7 +73,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     while (currentNodeId) {
       path.unshift(currentNodeId);
       const parentEdge = edges.find(e => e.target === currentNodeId);
-      currentNodeId = parentEdge?.source || undefined;
+      currentNodeId = parentEdge?.source || "";
     }
     return path;
   }, []);
@@ -186,7 +185,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
             fontSize: 20,
             fill: "#64748b",
           },
-          labelBgPadding: [8, 4],
+          labelBgPadding: [8, 4] as [number, number],
           labelBgBorderRadius: 4,
           labelBgStyle: {
             fill: "#f1f5f9",

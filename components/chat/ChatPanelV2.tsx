@@ -86,22 +86,26 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   // Build indices for efficient lookups
   const byId = useMemo(() => new Map<string, typeof messages[0]>(messages.map((m: typeof messages[0]) => [m._id, m])), [messages]);
   
+  // Separate inherited and current messages
+  const { inheritedMessages, currentMessages } = useMemo(() => {
+    const inherited = messages.filter((m: typeof messages[0]) => (m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
+    const current = messages.filter((m: typeof messages[0]) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
+    return { inheritedMessages: inherited, currentMessages: current };
+  }, [messages]);
 
-  // Compute default leaf - prefer latest assistant, then latest user, then latest message
+  // Compute default leaf - prefer latest current assistant, then current user, then fallback
   const defaultLeaf = useMemo(() => {
-    // First try to find the latest assistant message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
+    const src = currentMessages.length > 0 ? currentMessages : messages;
+    for (let i = src.length - 1; i >= 0; i--) {
+      const m = src[i];
       if (m.role === "assistant") return m._id;
     }
-    // Then try latest user message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
+    for (let i = src.length - 1; i >= 0; i--) {
+      const m = src[i];
       if (m.role === "user") return m._id;
     }
-    // Finally, just use the latest message
-    return messages[messages.length - 1]?._id;
-  }, [messages]);
+    return src[src.length - 1]?._id;
+  }, [messages, currentMessages]);
 
   const leafId = getLeafForChat(chatId) ?? defaultLeaf;
 
@@ -111,13 +115,6 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       setLeafForChat(chatId, defaultLeaf);
     }
   }, [chatId, defaultLeaf, getLeafForChat, setLeafForChat]);
-
-  // Separate inherited and current messages
-  const { inheritedMessages, currentMessages } = useMemo(() => {
-    const inherited = messages.filter((m: typeof messages[0]) => (m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
-    const current = messages.filter((m: typeof messages[0]) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
-    return { inheritedMessages: inherited, currentMessages: current };
-  }, [messages]);
 
   // Path to the current leaf (only from current messages)
   const currentByIdMap = useMemo(() => new Map<string, typeof currentMessages[0]>(currentMessages.map((m: typeof currentMessages[0]) => [m._id, m])), [currentMessages]);
@@ -147,12 +144,12 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const needsResponse = useMemo(() => {
     if (!pathLeaf) return false;
     if (pathLeaf.role !== "user") return false;
-    // Check if there's already an assistant response to this user message
-    const hasResponse = messages.some(
+    // Check if there's already an assistant response to this user message (in current branch only)
+    const hasResponse = currentMessages.some(
       (m: typeof messages[0]) => m.role === "assistant" && m.parentMessageId === pathLeaf._id
     );
     return !hasResponse;
-  }, [pathLeaf, messages]);
+  }, [pathLeaf, currentMessages]);
 
   // Track the parent message id for the assistant's reply to avoid races
   const [pendingParentId, setPendingParentId] = useState<string | null>(null);
