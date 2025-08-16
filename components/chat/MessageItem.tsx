@@ -93,7 +93,7 @@ export default function MessageItem({
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {isAssistant && (
+          {isAssistant && !isLatest && (
             <Button
               variant="ghost"
               size="sm"
@@ -145,7 +145,7 @@ export default function MessageItem({
                 <Copy className="mr-2 h-3 w-3" />
                 Copy
               </DropdownMenuItem>
-              {isAssistant && (
+              {isAssistant && !isLatest && (
                 <DropdownMenuItem onClick={onBranch}>
                   <GitBranch className="mr-2 h-3 w-3" />
                   Branch from here
