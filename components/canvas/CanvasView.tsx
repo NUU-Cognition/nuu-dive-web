@@ -95,7 +95,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       // Build a temporary graph to check relationships
       const tempEdges: Edge[] = [];
       responseGraphs.forEach((graph) => {
-        graph.edges.forEach((edge) => {
+        graph.edges.forEach((edge: any) => {
           const sourceId = edge.from.type === "response" 
             ? `response-${edge.from.id}`
             : (edge.from.type === "concept" ? `concept-${edge.from.id}` : `doc-${edge.from.id}`);
@@ -106,7 +106,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
       // Check if current leaf is reachable from the last selected node
       const pathToNewLeaf = findPathToRoot(currentLeafNodeId, tempEdges);
-      const lastSelectedIndex = pathToNewLeaf.indexOf(lastSelectedNode);
+      const lastSelectedIndex = lastSelectedNode ? pathToNewLeaf.indexOf(lastSelectedNode) : -1;
       
       if (lastSelectedIndex !== -1) {
         // Extend the path to include the new leaf
@@ -252,7 +252,11 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   // ADD: Clear selection when clicking background
   const onPaneClick = useCallback(() => {
     setSelectedNode([]);
-  }, []);
+    // Clear all selections to hide chat interface
+    setSelectedChat(null); // Clear chat selection to hide messages
+    setSelectedConcept(null); // Also clear concept selection
+    setSelectedDocument(null); // And document selection
+  }, [setSelectedChat, setSelectedConcept, setSelectedDocument]);
 
   return (
     <div className="h-full w-full">
