@@ -21,6 +21,7 @@ interface Concept {
   _id: string;
   title: string;
   snippet: string;
+  note?: string; // Markdown note attached to the concept
   sourceType: "url" | "pdf" | "chat";
   sourceUrl?: string;
   documentId?: string;
@@ -81,7 +82,7 @@ interface WorkspaceContextType {
       pageCount?: number;
     };
   }) => Promise<string>;
-  updateConcept: (id: string, updates: Partial<Concept>) => void; // (no-op for now)
+  updateConcept: (id: string, updates: Partial<Concept>) => Promise<void>;
 
   // Selection
   selectedConceptId: string | null;
@@ -90,6 +91,11 @@ interface WorkspaceContextType {
   setSelectedConcept: (conceptId: string | null) => void;
   setSelectedChat: (chatId: string | null) => void;
   setSelectedDocument: (documentId: string | null) => void;
+
+  // Note editing
+  editingConceptNoteId: string | null;
+  setEditingConceptNoteId: (conceptId: string | null) => void;
+  openConceptNote: (conceptId: string) => void;
 
   // Useful context
   diveId: string;
@@ -170,6 +176,7 @@ export function WorkspaceProvider({
         _id: c._id as string,
         title: c.title,
         snippet: c.snippet,
+        note: (c as any).note ?? undefined,
         sourceType: c.sourceType as Concept["sourceType"],
         sourceUrl: c.sourceUrl ?? undefined,
         documentId: (c as any).documentId ?? undefined,
@@ -187,6 +194,9 @@ export function WorkspaceProvider({
   );
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  
+  // Note editing
+  const [editingConceptNoteId, setEditingConceptNoteId] = useState<string | null>(null);
   
   // Leaf cursor state - tracks current leaf message per chat
   const [leafByChat, setLeafByChat] = useState<Record<string, string | undefined>>({});
@@ -242,6 +252,7 @@ export function WorkspaceProvider({
   // Mutations
   const createConcept = useMutation(api.concepts.create);
   const createDocument = useMutation(api.documents.create);
+  const updateConceptMutation = useMutation(api.concepts.update);
 
   const addConcept = useCallback(
     async ({
@@ -329,10 +340,17 @@ export function WorkspaceProvider({
     [createDocument, currentUserId, diveId]
   );
 
-  // Not used now (kept to avoid refactors)
-  const updateConcept = useCallback((_id: string, _updates: Partial<Concept>) => {
-    // You can wire to convex.dives.update or a concepts.update in future
-  }, []);
+  const updateConcept = useCallback(async (id: string, updates: Partial<Concept>) => {
+    if (!currentUserId) throw new Error("User not initialized yet");
+    
+    // For now, only support updating the note field
+    if (updates.note !== undefined) {
+      await updateConceptMutation({
+        conceptId: id as unknown as Id<"concepts">,
+        note: updates.note,
+      });
+    }
+  }, [updateConceptMutation, currentUserId]);
 
   const setSelectedConcept = useCallback((conceptId: string | null) => {
     setSelectedConceptId(conceptId);
@@ -355,6 +373,10 @@ export function WorkspaceProvider({
     // while a document is shown as the main panel.
   }, []);
 
+  const openConceptNote = useCallback((conceptId: string) => {
+    setEditingConceptNoteId(conceptId);
+  }, []);
+
   return (
     <WorkspaceContext.Provider
       value={{
@@ -371,6 +393,9 @@ export function WorkspaceProvider({
         setSelectedConcept,
         setSelectedChat,
         setSelectedDocument,
+        editingConceptNoteId,
+        setEditingConceptNoteId,
+        openConceptNote,
         getLeafForChat,
         setLeafForChat,
         pendingByChat,

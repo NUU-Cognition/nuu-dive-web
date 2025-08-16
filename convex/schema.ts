@@ -47,7 +47,7 @@ export default defineSchema({
     diveId: v.id("dives"),
     title: v.string(),
     snippet: v.string(),
-    note: v.optional(v.string()), // User notes about the concept
+    note: v.optional(v.string()), // Markdown note attached to the concept
     sourceType: v.union(v.literal("url"), v.literal("pdf"), v.literal("chat")),
     sourceUrl: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
