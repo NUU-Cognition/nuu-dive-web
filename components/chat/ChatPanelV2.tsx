@@ -53,7 +53,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Workspace context for user & dive metadata + leaf cursor
-  const { currentUserId, diveId, setSelectedChat, getLeafForChat, setLeafForChat } = useWorkspace();
+  const { currentUserId, diveId, setSelectedChat, getLeafForChat, setLeafForChat, setPendingForChat } = useWorkspace();
   const ready = Boolean(currentUserId);
   
   // Persist overrides per anchor (the current leaf message)
@@ -140,10 +140,16 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
   // Streaming hook for LLM responses
   const { sendMessage, isStreaming } = useStreamChat({
+    onStart: ({ messageId }) => {
+      // Create ephemeral loading dot for this chat immediately
+      setPendingForChat(chatId, { id: messageId, parentMessageId: pendingParentIdRef.current ?? undefined });
+    },
     onToken: (token) => {
       setStreamingMessage((prev) => prev + token);
     },
     onComplete: async (fullText) => {
+      // Remove loading dot; persisted message will appear next render
+      setPendingForChat(chatId, null);
       console.log("Stream complete, saving assistant message");
       console.log("Full text length:", fullText?.length);
       console.log("Pending parent ID (state):", pendingParentId);
@@ -183,6 +189,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     },
     onError: (error) => {
       console.error("Stream error:", error);
+      setPendingForChat(chatId, null);
       setStreamError(error);
       setStreamingMessage("");
       setPendingParentId(null);

@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Handle, Position, NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 
 interface ResponseNodeData {
   content: string;
@@ -9,6 +9,7 @@ interface ResponseNodeData {
   tokenCount?: number;
   selected?: boolean;
   onClick?: () => void;
+  loading?: boolean;
 }
 
 function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
@@ -34,17 +35,36 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
         className="!bg-primary"
       />
 
-      {/* Response dot */}
-      <div
-        className={`
-          w-2.5 h-2.5 rounded-full transition-all
-          ${selected 
-            ? "bg-primary ring-2 ring-primary/40 scale-125" 
-            : "bg-black dark:bg-white dark:opacity-90 hover:ring-2 hover:ring-primary/20"
-          }
-        `}
-        title={preview}
-      />
+      {/* Response dot / Loading spinner */}
+      <div className="relative w-3.5 h-3.5" title={data.loading ? "Generating…" : preview}>
+        {data.loading ? (
+          <>
+            <div
+              className={`
+                absolute inset-0 rounded-full border-2 border-muted-foreground/40 
+                border-t-primary animate-spin transition-opacity
+                ${selected ? "opacity-100" : "opacity-90"}
+              `}
+            />
+            <div
+              className={`
+                absolute inset-[3px] rounded-full bg-background
+                ${selected ? "ring-2 ring-primary/30" : ""}
+              `}
+            />
+          </>
+        ) : (
+          <div
+            className={`
+              absolute inset-0 rounded-full transition-all
+              ${selected 
+                ? "bg-primary ring-2 ring-primary/40 scale-110"
+                : "bg-black dark:bg-white dark:opacity-90 hover:ring-2 hover:ring-primary/20"
+              }
+            `}
+          />
+        )}
+      </div>
 
       {/* Tooltip on hover */}
       <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 
@@ -52,7 +72,7 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
                       transition-opacity z-50">
         <div className="glass-frosted min-w-[100px] min-h-[50px] p-10">
           <p className="text-base text-ice-500 whitespace-pre-wrap line-clamp-4">
-            {preview}
+            {data.loading ? "Generating…" : preview}
           </p>
         </div>
       </div>

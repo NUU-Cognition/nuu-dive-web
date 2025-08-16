@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Send, FileText, Link2, ExternalLink } from "lucide-react";
@@ -22,12 +22,14 @@ interface DocumentPanelProps {
 }
 
 export default function DocumentPanel({ documentId, onClose, layout = "dock" }: DocumentPanelProps) {
-  const { currentUserId, setSelectedChat, setLeafForChat } = useWorkspace();
+  const { currentUserId, setSelectedChat, setLeafForChat, setPendingForChat } = useWorkspace();
   const [question, setQuestion] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [pendingParentId, setPendingParentId] = useState<string | null>(null);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const activeChatIdRef = useRef<string | null>(null);
+  useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
   
   // Get document details
   const document = useQuery(
@@ -49,10 +51,16 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
   
   // Streaming hook
   const { sendMessage, isStreaming } = useStreamChat({
+    onStart: ({ messageId }) => {
+      const cid = activeChatIdRef.current;
+      if (cid) setPendingForChat(cid, { id: messageId, parentMessageId: pendingParentId ?? undefined });
+    },
     onToken: (token) => {
       setStreamingMessage((prev) => prev + token);
     },
     onComplete: async (fullText) => {
+      const cid = activeChatIdRef.current;
+      if (cid) setPendingForChat(cid, null);
       // Persist assistant reply under the user message we just created
       if (activeChatId && pendingParentId && currentUserId) {
         const assistantId = await createAssistantMessage({
@@ -73,6 +81,8 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
     },
     onError: (error) => {
       console.error("Stream error:", error);
+      const cid = activeChatIdRef.current;
+      if (cid) setPendingForChat(cid, null);
       setStreamingMessage("");
       setIsCreatingChat(false);
     },

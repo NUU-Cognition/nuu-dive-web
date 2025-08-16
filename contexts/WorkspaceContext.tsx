@@ -51,6 +51,10 @@ interface WorkspaceContextType {
   // Leaf cursor management
   getLeafForChat: (chatId: string) => string | undefined;
   setLeafForChat: (chatId: string, messageId: string | null) => void;
+  // Pending (ephemeral) response loading per chat
+  pendingByChat: Record<string, { id: string; parentMessageId?: string } | undefined>;
+  getPendingForChat: (chatId: string) => { id: string; parentMessageId?: string } | undefined;
+  setPendingForChat: (chatId: string, pending: { id: string; parentMessageId?: string } | null) => void;
   // Mutations
   addConcept: (args: {
     title: string;
@@ -181,6 +185,8 @@ export function WorkspaceProvider({
   
   // Leaf cursor state - tracks current leaf message per chat
   const [leafByChat, setLeafByChat] = useState<Record<string, string | undefined>>({});
+  const [pendingByChat, setPendingByChat] = 
+    useState<Record<string, { id: string; parentMessageId?: string } | undefined>>({});
 
   const getLeafForChat = useCallback(
     (chatId: string) => leafByChat[chatId],
@@ -190,6 +196,18 @@ export function WorkspaceProvider({
   const setLeafForChat = useCallback((chatId: string, messageId: string | null) => {
     setLeafByChat((prev) => ({ ...prev, [chatId]: messageId ?? undefined }));
   }, []);
+
+  const getPendingForChat = useCallback(
+    (chatId: string) => pendingByChat[chatId],
+    [pendingByChat]
+  );
+  
+  const setPendingForChat = useCallback(
+    (chatId: string, pending: { id: string; parentMessageId?: string } | null) => {
+      setPendingByChat((prev) => ({ ...prev, [chatId]: pending ?? undefined }));
+    },
+    []
+  );
 
   // When the selected concept changes, resolve its chat from Convex
   const selectedConceptDetail = useQuery(
@@ -341,6 +359,9 @@ export function WorkspaceProvider({
         setSelectedDocument,
         getLeafForChat,
         setLeafForChat,
+        pendingByChat,
+        getPendingForChat,
+        setPendingForChat,
         diveId,
         currentUserId,
       }}

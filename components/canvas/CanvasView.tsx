@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState, useMemo } from "react";
 import ReactFlow, {
-  Node,
-  Edge,
+  type Node,
+  type Edge,
   Controls,
   Background,
   MiniMap,
@@ -46,6 +46,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setSelectedChat,
     setLeafForChat,
     getLeafForChat,
+    pendingByChat,
   } = useWorkspace();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -73,7 +74,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       if (nodeType === "document") {
         setSelectedDocument(nodeId);
       } else if (nodeType === "concept") {
-        setSelectedConcept(nodeId);
+        setSelectedConcept(nodeId ?? null);
       } else if (nodeType === "response") {
         const chatId = extra?.chatId;
         if (chatId) {
@@ -88,7 +89,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       concepts,
       responseGraphs,
       selectedResponseId || selectedConceptId || selectedDocumentId,
-      handleNodeClick
+      handleNodeClick,
+      pendingByChat
     );
 
     // Auto-layout if we have nodes
@@ -115,6 +117,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     setSelectedChat,
     setLeafForChat,
     getLeafForChat,
+    pendingByChat,
   ]);
 
   const onNodeClick = useCallback(
@@ -122,15 +125,15 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       const [type, id] = node.id.split("-");
       
       if (type === "doc") {
-        setSelectedDocument(id);
+        setSelectedDocument(id ?? null);
       } else if (type === "concept") {
-        setSelectedConcept(id);
+        setSelectedConcept(id ?? null);
       } else if (type === "response") {
         // Find the chatId for this response from the precomputed graphs
         for (const [, graph] of responseGraphs) {
           if (graph.nodes?.some?.((n: any) => n.id === id)) {
             setSelectedChat(graph.anchor.chatId);
-            setLeafForChat(graph.anchor.chatId, id);
+            setLeafForChat(graph.anchor.chatId, id ?? null);
             break;
           }
         }

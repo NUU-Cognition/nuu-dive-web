@@ -4,6 +4,7 @@ interface StreamChatOptions {
   onToken?: (token: string) => void;
   onComplete?: (fullText: string, messageId: string) => void;
   onError?: (error: string) => void;
+  onStart?: (info: { messageId: string }) => void;
 }
 
 export function useStreamChat(options: StreamChatOptions = {}) {
@@ -97,6 +98,12 @@ export function useStreamChat(options: StreamChatOptions = {}) {
                 const parsed = JSON.parse(data);
                 
                 switch (parsed.type) {
+                  case "start":
+                    if (parsed.messageId) {
+                      options.onStart?.({ messageId: String(parsed.messageId) });
+                    }
+                    break;
+                    
                   case "token":
                     setStreamedText((prev) => prev + parsed.content);
                     options.onToken?.(parsed.content);

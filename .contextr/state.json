@@ -39,6 +39,8 @@
         "components\\ui\\input.tsx",
         "components\\ui\\label.tsx",
         "components\\ui\\scroll-area.tsx",
+        "components\\ui\\skeleton.tsx",
+        "components\\ui\\spinner.tsx",
         "components\\ui\\textarea.tsx",
         "contexts\\WorkspaceContext.tsx",
         "eslint.config.mjs",

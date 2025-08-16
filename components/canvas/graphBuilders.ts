@@ -1,4 +1,4 @@
-import { Node, Edge, Position } from "reactflow";
+import { type Node, type Edge, Position } from "reactflow";
 import dagre from "dagre";
 
 interface ResponseGraphNode {
@@ -23,13 +23,15 @@ interface ResponseGraph {
   edges: ResponseGraphEdge[];
 }
 
+type Pending = { id: string; parentMessageId?: string };
+
 interface Document {
   _id: string;
   title: string;
   kind: "url" | "pdf";
   url?: string;
-  responseCount: number;
-  conceptCount: number;
+  responseCount?: number;
+  conceptCount?: number;
 }
 
 interface Concept {
@@ -48,7 +50,8 @@ export function buildGraphElements(
   concepts: Concept[],
   responseGraphs: Map<string, ResponseGraph>,
   selectedId?: string | null,
-  onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void
+  onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
+  pendingByChat: Record<string, Pending | undefined> = {}
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
@@ -114,7 +117,8 @@ export function buildGraphElements(
           conceptNodeId,
           { x: conceptX + 250, y: docY + idx * 80 },
           selectedId,
-          onNodeClick
+          onNodeClick,
+          pendingByChat[responseGraph.anchor.chatId]
         );
         nodes.push(...responseNodes);
         edges.push(...responseEdges);
@@ -129,7 +133,8 @@ export function buildGraphElements(
         nodeId,
         { x: 50, y: docY + 150 },
         selectedId,
-        onNodeClick
+        onNodeClick,
+        pendingByChat[docResponseGraph.anchor.chatId]
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -164,7 +169,8 @@ export function buildGraphElements(
         conceptNodeId,
         { x: 1050, y: standaloneY },
         selectedId,
-        onNodeClick
+        onNodeClick,
+        pendingByChat[responseGraph.anchor.chatId]
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -227,7 +233,8 @@ export function buildGraphElements(
         anchorNodeId,
         { x: 200, y: freeChatY + idx * 150 },
         selectedId,
-        onNodeClick
+        onNodeClick,
+        pendingByChat[graph.anchor.chatId]
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -245,7 +252,8 @@ function buildResponseSubgraph(
   anchorNodeId: string,
   startPosition: { x: number; y: number },
   selectedId?: string | null,
-  onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void
+  onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
+  pending?: Pending
 ): { responseNodes: Node[]; responseEdges: Edge[] } {
   const responseNodes: Node[] = [];
   const responseEdges: Edge[] = [];
@@ -254,40 +262,7 @@ function buildResponseSubgraph(
   let responseY = startPosition.y + 50;
   const responseSpacing = 40;
   
-  // If no nodes, add a placeholder
-  if (graph.nodes.length === 0) {
-    responseNodes.push({
-      id: `${anchorNodeId}-placeholder`,
-      type: "default",
-      position: { x: startPosition.x, y: responseY },
-      data: { 
-        label: "No responses yet" 
-      },
-      style: {
-        background: "#fafafa",
-        border: "1px dashed #cbd5e1",
-        borderRadius: "4px",
-        fontSize: "12px",
-        color: "#94a3b8",
-        padding: "4px 8px"
-      }
-    });
-    
-    // Connect placeholder to anchor
-    responseEdges.push({
-      id: `${anchorNodeId}-to-placeholder`,
-      source: anchorNodeId,
-      target: `${anchorNodeId}-placeholder`,
-      type: "smoothstep",
-      style: { 
-        stroke: "#e2e8f0", 
-        strokeWidth: 1,
-        strokeDasharray: "5,5"
-      },
-    });
-    
-    return { responseNodes, responseEdges };
-  }
+  // NOTE: no placeholder anymore — clean surface when empty
   
   graph.nodes.forEach((node, idx) => {
     const nodeId = `response-${node.id}`;
@@ -337,6 +312,43 @@ function buildResponseSubgraph(
       },
     });
   });
+
+  // If there is an in-flight response, append a loading node at the end
+  if (pending) {
+    const pendingNodeId = `pending-${graph.anchor.chatId}-${pending.id}`;
+    // Position below the last item (or at first row if empty)
+    const lastNode = graph.nodes[graph.nodes.length - 1];
+    const attachToId =
+      graph.nodes.length > 0 && lastNode ? `response-${lastNode.id}` : anchorNodeId;
+    if (graph.nodes.length === 0) {
+      // align to first position when there were no nodes
+      responseY = startPosition.y + 50;
+    }
+    responseNodes.push({
+      id: pendingNodeId,
+      type: "responseNode",
+      position: { x: startPosition.x, y: responseY },
+      data: {
+        content: "",
+        createdAt: Date.now(),
+        loading: true,
+        selected: false,
+        onClick: () => onNodeClick?.(pending.id, "response", { chatId: graph.anchor.chatId }),
+      },
+    });
+    responseEdges.push({
+      id: `${attachToId}-${pendingNodeId}`,
+      source: attachToId,
+      target: pendingNodeId,
+      type: "bezier",
+      label: "Generating…",
+      labelStyle: { fontSize: 11, fill: "#64748b" },
+      labelBgPadding: [8, 4],
+      labelBgBorderRadius: 4,
+      labelBgStyle: { fill: "#f1f5f9", fillOpacity: 0.9 },
+      style: { stroke: "#cbd5e1", strokeWidth: 1, strokeDasharray: "4,4" },
+    });
+  }
   
   return { responseNodes, responseEdges };
 }
