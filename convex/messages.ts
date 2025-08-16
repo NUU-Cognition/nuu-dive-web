@@ -186,6 +186,47 @@ export const softDelete = mutation({
   },
 });
 
+export const deleteWithChildren = mutation({
+  args: {
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error("Message not found");
+    }
+    
+    // Get all messages in the chat to find children
+    const allMessages = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", message.chatId))
+      .collect();
+    
+    // Find all descendants recursively
+    const toDelete = new Set<string>();
+    const findChildren = (parentId: string) => {
+      toDelete.add(parentId);
+      allMessages.forEach((m) => {
+        if (m.parentMessageId === parentId && !toDelete.has(m._id)) {
+          findChildren(m._id);
+        }
+      });
+    };
+    
+    findChildren(args.messageId);
+    
+    // Soft delete all descendants
+    const deletedAt = Date.now();
+    await Promise.all(
+      Array.from(toDelete).map((id) =>
+        ctx.db.patch(id as any, { deletedAt })
+      )
+    );
+    
+    return { success: true, deletedCount: toDelete.size };
+  },
+});
+
 export const responseGraph = query({
   args: { 
     chatId: v.id("chats") 

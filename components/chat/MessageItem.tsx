@@ -29,6 +29,7 @@ interface MessageItemProps {
   onBranch?: () => void;
   onCopy?: () => void;
   onExtractConcept?: () => void;
+  onDelete?: () => void;
   depth?: number;
 }
 
@@ -38,6 +39,7 @@ export default function MessageItem({
   onBranch,
   onCopy,
   onExtractConcept,
+  onDelete,
   depth = 0
 }: MessageItemProps) {
   const [copied, setCopied] = useState(false);
@@ -156,7 +158,7 @@ export default function MessageItem({
                 Extract as Concept
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem onClick={onDelete} className="text-destructive">
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>

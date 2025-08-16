@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Send, GitBranch, Paperclip, Info, Plus } from "lucide-react";
@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface ChatPanelProps {
   chatId: string;
@@ -28,14 +29,7 @@ interface ChatPanelProps {
   onClose: () => void;
 }
 
-interface Message {
-  _id: string;
-  role: "system" | "user" | "assistant" | "note";
-  content: string;
-  parentMessageId?: string;
-  depth: number;
-  createdAt: number;
-}
+// Message interface is imported from useConvexChat hook
 
 export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelProps) {
   const [inputValue, setInputValue] = useState("");
@@ -45,10 +39,12 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [branchInput, setBranchInput] = useState("");
   const [branchFromId, setBranchFromId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [extractConceptDialog, setExtractConceptDialog] = useState(false);
   const [conceptTitle, setConceptTitle] = useState("");
   const [conceptSnippet, setConceptSnippet] = useState("");
-  const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<any>(null);
+  const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<{ _id: string; content: string; role: string } | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -66,6 +62,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     createAssistantMessage,
     createBranch,
     createConcept,
+    deleteMessage,
   } = useConvexChat({
     chatId,
     conceptId,
@@ -106,8 +103,8 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const path = useMemo(() => {
     if (!leafId) return [];
     const p: typeof messages = [];
-    let cur = byId.get(leafId);
-    const guard = new Set<string>();
+    let cur = byId.get(leafId as Id<"messages">);
+    const guard = new Set<Id<"messages">>();
     while (cur && !guard.has(cur._id)) {
       p.unshift(cur);
       guard.add(cur._id);
@@ -230,9 +227,9 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     // If leaf is a user, we need to wait for its response first
     let parentId = pathLeaf?._id;
     
-    // If there's no path yet (empty chat), parent to undefined
+    // If there's no path yet (empty chat), parent to an empty message id of type Id<"messages">
     if (path.length === 0) {
-      parentId = undefined;
+      parentId = { __tableName: "messages" } as Id<"messages">;
     }
     
     // Create user message in Convex
@@ -252,7 +249,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     const newPath = [...path];
     // Only add the new message if it's not already in the path
     if (!path.some(m => m._id === newUserMessage._id)) {
-      newPath.push(newUserMessage);
+      newPath.push(newUserMessage as typeof path[number]);
     }
 
     await sendMessage({
@@ -268,10 +265,10 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     try {
       if (inclusionOverride && pathLeaf?._id && currentUserId) {
         await upsertOverrides({
-          anchorMessageId: pathLeaf._id as any,
-          includeIds: inclusionOverride.includeIds as any,
-          excludeIds: inclusionOverride.excludeIds as any,
-          userId: currentUserId as any,
+          anchorMessageId: pathLeaf._id as unknown as Parameters<typeof upsertOverrides>[0]['anchorMessageId'],
+          includeIds: inclusionOverride.includeIds as unknown as Parameters<typeof upsertOverrides>[0]['includeIds'],
+          excludeIds: inclusionOverride.excludeIds as unknown as Parameters<typeof upsertOverrides>[0]['excludeIds'],
+          userId: currentUserId as unknown as Parameters<typeof upsertOverrides>[0]['userId'],
         });
       }
     } catch (e) {
@@ -303,15 +300,15 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
     // Build path up to and including the branch point
     const branchPath: typeof messages = [];
-    let cur = byId.get(branchFromId);
-    const guard = new Set<string>();
+    let cur = branchFromId ? byId.get(branchFromId as Id<"messages">) : undefined;
+    const guard = new Set<Id<"messages">>();
     while (cur && !guard.has(cur._id)) {
       branchPath.unshift(cur);
       guard.add(cur._id);
-      cur = cur.parentMessageId ? byId.get(cur.parentMessageId) : undefined;
+      cur = cur && cur.parentMessageId ? byId.get(cur.parentMessageId as Id<"messages">) : undefined;
     }
-    branchPath.push(branchMessage);
-
+    branchPath.push(branchMessage as typeof branchPath[number]);
+    
     // Send branched message to streaming API
     await sendMessage({
       chatId,
@@ -327,7 +324,24 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     navigator.clipboard.writeText(content);
   };
 
-  const handleExtractConcept = (message: any) => {
+  const handleDelete = (messageId: string) => {
+    setMessageToDelete(messageId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (messageToDelete && ready) {
+      try {
+        await deleteMessage(messageToDelete);
+      } catch (error) {
+        console.error("Failed to delete message:", error);
+      }
+    }
+    setDeleteDialogOpen(false);
+    setMessageToDelete(null);
+  };
+
+  const handleExtractConcept = (message: { _id: string; content: string; role: string }) => {
     setSelectedMessageForConcept(message);
     setConceptSnippet(message.content);
     setConceptTitle("");
@@ -392,6 +406,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
               onBranch={node.role === "assistant" ? () => handleBranch(node._id) : undefined}
               onCopy={() => handleCopy(node.content)}
               onExtractConcept={() => handleExtractConcept(node)}
+              onDelete={() => handleDelete(node._id)}
               depth={0}  // Force linear presentation - no indentation
             />
           ))}
@@ -483,7 +498,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         open={contextInspectorOpen}
         onClose={() => setContextInspectorOpen(false)}
         messages={path}
-        // @ts-ignore - see patched ContextInspector
+        // @ts-expect-error - ContextInspector onSave prop may not be properly typed
         onSave={(o: { includeIds?: string[]; excludeIds?: string[] }) => setInclusionOverride(o)}
       />
 
@@ -553,6 +568,26 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             <Button onClick={handleCreateConcept} disabled={!conceptTitle.trim()}>
               <Plus className="mr-2 h-4 w-4" />
               Create Concept
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Message</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this message? This will also delete all child messages in this branch. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

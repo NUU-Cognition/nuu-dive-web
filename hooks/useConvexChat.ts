@@ -31,6 +31,7 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
   const createUser = useMutation(api.messages.createUser);
   const createAssistant = useMutation(api.messages.createAssistant);
   const branch = useMutation(api.messages.branch);
+  const deleteMessage = useMutation(api.messages.deleteWithChildren);
   const createConcept = useMutation(api.concepts.create);
 
   const createUserMessage = useCallback(
@@ -101,11 +102,21 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
     [createConcept, diveId, userId]
   );
 
+  const deleteMessageWithChildren = useCallback(
+    async (messageId: string) => {
+      await deleteMessage({
+        messageId: messageId as unknown as Id<"messages">,
+      });
+    },
+    [deleteMessage]
+  );
+
   return {
     messages,
     createUserMessage,
     createAssistantMessage,
     createBranch,
     createConcept: createConceptFromMessage,
+    deleteMessage: deleteMessageWithChildren,
   };
 }
