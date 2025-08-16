@@ -16,9 +16,11 @@ const PdfViewer = dynamic(() => import("./PdfViewer"), { ssr: false });
 interface DocumentPanelProps {
   documentId: string;
   onClose: () => void;
+  /** "main" replaces canvas; "dock" is the old narrow panel */
+  layout?: "main" | "dock";
 }
 
-export default function DocumentPanel({ documentId, onClose }: DocumentPanelProps) {
+export default function DocumentPanel({ documentId, onClose, layout = "dock" }: DocumentPanelProps) {
   const { currentUserId, setSelectedChat, setLeafForChat } = useWorkspace();
   const [question, setQuestion] = useState("");
   const [isCreatingChat, setIsCreatingChat] = useState(false);
@@ -118,16 +120,21 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
     }
   };
   
+  const outerClass =
+    layout === "main"
+      ? "flex-1 min-w-0 border-r bg-background h-full flex flex-col"
+      : "w-[400px] border-l bg-background h-full flex flex-col";
+
   if (!document) {
     return (
-      <div className="w-[400px] border-l bg-background h-full flex items-center justify-center">
+      <div className={outerClass + " flex items-center justify-center"}>
         <div className="animate-pulse">Loading document...</div>
       </div>
     );
   }
   
   return (
-    <div className="w-[400px] border-l bg-background h-full flex flex-col">
+    <div className={outerClass}>
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
@@ -168,7 +175,7 @@ export default function DocumentPanel({ documentId, onClose }: DocumentPanelProp
       </div>
       
       {/* Middle content - PDF viewer or existing responses */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-w-0">
         {document.kind === "pdf" ? (
           <div className="h-full">
             <PdfViewer

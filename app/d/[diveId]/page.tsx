@@ -24,6 +24,7 @@ import ConceptsList from "@/components/canvas/ConceptsList";
 import ChatPanelV2 from "@/components/chat/ChatPanelV2";
 import DocumentPanel from "@/components/document/DocumentPanel";
 import CanvasView from "@/components/canvas/CanvasView";
+import RightDock from "@/components/layout/RightDock";
 import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
 
 function DiveWorkspaceContent() {
@@ -293,35 +294,33 @@ function DiveWorkspaceContent() {
             </div>
           )}
 
-          {/* Canvas and Chat area */}
-          <div className="flex flex-1">
-            {/* Canvas */}
-            <div className="flex-1">
-              <CanvasView diveId={diveId} />
-            </div>
-
-            {/* Right Panel - Document or Chat */}
+          {/* Center main panel */}
+          <div className="flex-1 min-w-0">
             {selectedDocumentId ? (
               <DocumentPanel
+                layout="main"
                 documentId={selectedDocumentId}
                 onClose={() => setSelectedDocument(null)}
               />
-            ) : selectedChatId ? (
-              <div className="w-[600px] border-l flex h-full">
-                <ChatPanelV2
-                  chatId={selectedChatId}
-                  conceptId={selectedConceptId ?? null}
-                  onClose={() => setSelectedChat(null)}
-                />
-              </div>
             ) : (
-              <div className="w-[600px] border-l flex items-center justify-center">
-                <div className="text-center text-muted-foreground">
-                  <p className="text-sm">Select a document or concept to start</p>
-                </div>
-              </div>
+              <CanvasView diveId={diveId} />
             )}
           </div>
+
+          {/* Right dock = Chat (resizable & collapsible) */}
+          <RightDock storageKey="dock.chat" label="Chat">
+            {selectedChatId ? (
+              <ChatPanelV2
+                chatId={selectedChatId}
+                conceptId={selectedConceptId ?? null}
+                onClose={() => setSelectedChat(null)}
+              />
+            ) : (
+              <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">
+                Select a concept or ask about an open document…
+              </div>
+            )}
+          </RightDock>
         </div>
     </div>
   );

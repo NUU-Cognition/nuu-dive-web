@@ -325,7 +325,8 @@ export function WorkspaceProvider({
   
   const setSelectedDocument = useCallback((documentId: string | null) => {
     setSelectedDocumentId(documentId);
-    setSelectedConceptId(null);
+    // Do NOT clear concept selection. This allows chat to remain concept-anchored
+    // while a document is shown as the main panel.
   }, []);
 
   return (
