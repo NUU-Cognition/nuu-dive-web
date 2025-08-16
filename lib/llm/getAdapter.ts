@@ -1,4 +1,4 @@
-import { LLMAdapter } from "./provider";
+import type { LLMAdapter } from "./provider";
 import { openaiAdapter } from "./openaiAdapter";
 import { mockAdapter } from "./mockAdapter";
 

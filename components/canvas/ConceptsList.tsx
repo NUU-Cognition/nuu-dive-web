@@ -22,13 +22,15 @@ interface ConceptsListProps {
   diveId: string;
 }
 
-export default function ConceptsList({ diveId }: ConceptsListProps) {
+export default function ConceptsList({}: ConceptsListProps) {
   const { 
     concepts, 
     addConcept, 
     selectedConceptId, 
     setSelectedConcept,
     conceptsLoading,
+    setSelectedChat,
+    setLeafForChat 
   } = useWorkspace();
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,9 +57,13 @@ export default function ConceptsList({ diveId }: ConceptsListProps) {
       });
       
       setSelectedConcept(conceptId);
+      setSelectedChat(chatId);
       
-      // TODO: Trigger streaming for the first response
-      // This would call /api/chat/stream with the firstUserMessageId
+      // Set the leaf cursor to the newly created user message to trigger auto-streaming
+      if (firstUserMessageId) {
+        setLeafForChat(chatId, firstUserMessageId);
+      }
+      
       console.log("Created concept with first question:", { conceptId, chatId, firstUserMessageId });
       
       setNewConceptTitle("");

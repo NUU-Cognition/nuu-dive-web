@@ -26,19 +26,22 @@ interface Message {
 interface MessageItemProps {
   message: Message;
   isLatest: boolean;
+  isInherited?: boolean;
   onBranch?: () => void;
   onCopy?: () => void;
   onExtractConcept?: () => void;
+  onDelete?: () => void;
   depth?: number;
 }
 
 export default function MessageItem({ 
   message, 
   isLatest, 
+  isInherited = false,
   onBranch,
   onCopy,
   onExtractConcept,
-  depth = 0
+  onDelete
 }: MessageItemProps) {
   const [copied, setCopied] = useState(false);
   const isAssistant = message.role === "assistant";
@@ -52,7 +55,11 @@ export default function MessageItem({
   };
 
   return (
-    <div className="group relative flex gap-3">
+    <div 
+      className="group relative flex gap-3"
+      data-message-id={message._id}
+      data-message-role={message.role}
+    >
       {/* Avatar */}
       <div className="flex-shrink-0">
         <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
@@ -76,6 +83,11 @@ export default function MessageItem({
           <span className="text-sm font-medium">
             {isUser ? "You" : isAssistant ? "Assistant" : "Note"}
           </span>
+          {isInherited && (
+            <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">
+              Inherited
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(message.createdAt, { addSuffix: true })}
           </span>
@@ -93,7 +105,7 @@ export default function MessageItem({
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {isAssistant && !isLatest && (
+          {isAssistant && !isLatest && !isInherited && (
             <Button
               variant="ghost"
               size="sm"
@@ -145,7 +157,7 @@ export default function MessageItem({
                 <Copy className="mr-2 h-3 w-3" />
                 Copy
               </DropdownMenuItem>
-              {isAssistant && !isLatest && (
+              {isAssistant && !isLatest && !isInherited && (
                 <DropdownMenuItem onClick={onBranch}>
                   <GitBranch className="mr-2 h-3 w-3" />
                   Branch from here
@@ -155,10 +167,14 @@ export default function MessageItem({
                 <Sparkles className="mr-2 h-3 w-3" />
                 Extract as Concept
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                Delete
-              </DropdownMenuItem>
+              {!isInherited && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

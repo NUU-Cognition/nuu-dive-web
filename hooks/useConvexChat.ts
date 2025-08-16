@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -22,15 +22,36 @@ export interface Message {
 }
 
 export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexChatOptions) {
-  const messages =
-    useQuery(
-      api.messages.listByChat,
-      chatId ? ({ chatId: chatId as unknown as Id<"chats"> }) : "skip"
-    );
+  // Use specialized query for concept chats to get inherited context
+  const conceptChatData = useQuery(
+    api.messages.listByConceptChat,
+    chatId && conceptId ? ({ chatId: chatId as unknown as Id<"chats"> }) : "skip"
+  );
+  
+  const regularMessages = useQuery(
+    api.messages.listByChat,
+    chatId && !conceptId ? ({ chatId: chatId as unknown as Id<"chats"> }) : "skip"
+  ) || [];
+
+  // Process messages based on whether we have inherited context
+  const messages = useMemo(() => {
+    if (conceptChatData && 'hasInheritedContext' in conceptChatData) {
+      // Combine inherited and current messages
+      return [
+        ...conceptChatData.inheritedMessages.map((m: any) => ({
+          ...m,
+          isInherited: true,
+        })),
+        ...conceptChatData.currentMessages,
+      ];
+    }
+    return regularMessages;
+  }, [conceptChatData, regularMessages]);
 
   const createUser = useMutation(api.messages.createUser);
   const createAssistant = useMutation(api.messages.createAssistant);
   const branch = useMutation(api.messages.branch);
+  const deleteMessage = useMutation(api.messages.deleteWithChildren);
   const createConcept = useMutation(api.concepts.create);
 
   const createUserMessage = useCallback(
@@ -96,9 +117,18 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
         sourceMessageId: sourceMessageId as unknown as Id<"messages"> | undefined,
         userId: userId as unknown as Id<"users">,
       });
-      return res as { conceptId: string; chatId: string };
+      return { conceptId: res.conceptId as string };
     },
     [createConcept, diveId, userId]
+  );
+
+  const deleteMessageWithChildren = useCallback(
+    async (messageId: string) => {
+      await deleteMessage({
+        messageId: messageId as unknown as Id<"messages">,
+      });
+    },
+    [deleteMessage]
   );
 
   return {
@@ -107,5 +137,6 @@ export function useConvexChat({ chatId, conceptId, userId, diveId }: UseConvexCh
     createAssistantMessage,
     createBranch,
     createConcept: createConceptFromMessage,
+    deleteMessage: deleteMessageWithChildren,
   };
 }

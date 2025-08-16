@@ -1,4 +1,4 @@
-import { LLMMessage } from "../llm/provider";
+import type { LLMMessage } from "../llm/provider";
 
 interface Message {
   _id: string;
@@ -27,7 +27,6 @@ export async function assembleContext({
   includeIds,
   excludeIds,
   attachments = [],
-  maxTokens = 4000,
 }: ContextOptions): Promise<{
   system: string;
   contextMessages: LLMMessage[];
@@ -48,10 +47,21 @@ export async function assembleContext({
     );
   }
 
-  // Build system prompt
-  const system = `You are a helpful AI assistant that helps users explore concepts and ideas through branching conversations. 
+  // Check if we have inherited messages
+  const inheritedMessages = filteredMessages.filter((m) => (m as Message & { isInherited?: boolean }).isInherited);
+  
+  // Build system prompt with context about inheritance
+  let systemPrompt = `You are a helpful AI assistant that helps users explore concepts and ideas through branching conversations. 
 Always cite sources when available using [Source Name](url) format.
 Provide clear, structured responses using markdown formatting.`;
+
+  if (inheritedMessages.length > 0) {
+    systemPrompt += `
+
+IMPORTANT: This conversation includes inherited context from a related conversation. The first ${inheritedMessages.length} messages are from a previous conversation that spawned this concept-based discussion. Use this context to provide informed responses while clearly building on the established discussion.`;
+  }
+
+  const system = systemPrompt;
 
   // Convert messages to LLM format - maintain conversation order
   const contextMessages: LLMMessage[] = filteredMessages

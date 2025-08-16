@@ -10,14 +10,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface Message {
+  _id: string;
+  role: string;
+  content: string;
+  createdAt: number;
+  [key: string]: unknown;
+}
+
 interface ExportButtonProps {
   chatId: string;
-  messages: any[];
+  messages: Message[];
   currentMessageId?: string;
 }
 
 export default function ExportButton({ 
-  chatId, 
   messages, 
   currentMessageId 
 }: ExportButtonProps) {
@@ -108,7 +115,7 @@ export default function ExportButton({
   );
 }
 
-function generateMarkdown(messages: any[]): string {
+function generateMarkdown(messages: Message[]): string {
   const lines: string[] = [];
   
   // Header

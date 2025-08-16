@@ -1,3 +1,4 @@
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -117,7 +118,7 @@ export const getSubtree = query({
     
     // If rootMessageId is specified, return only that subtree
     if (args.rootMessageId) {
-      const collectSubtree = (messageId: string): any[] => {
+      const collectSubtree = (messageId: Id<"messages">): any[] => {
         const message = messageMap.get(messageId);
         if (!message || message.deletedAt) return [];
         
@@ -183,6 +184,47 @@ export const softDelete = mutation({
     });
     
     return { success: true };
+  },
+});
+
+export const deleteWithChildren = mutation({
+  args: {
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error("Message not found");
+    }
+    
+    // Get all messages in the chat to find children
+    const allMessages = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", message.chatId))
+      .collect();
+    
+    // Find all descendants recursively
+    const toDelete = new Set<string>();
+    const findChildren = (parentId: string) => {
+      toDelete.add(parentId);
+      allMessages.forEach((m) => {
+        if (m.parentMessageId === parentId && !toDelete.has(m._id)) {
+          findChildren(m._id);
+        }
+      });
+    };
+    
+    findChildren(args.messageId);
+    
+    // Soft delete all descendants
+    const deletedAt = Date.now();
+    await Promise.all(
+      Array.from(toDelete).map((id) =>
+        ctx.db.patch(id as any, { deletedAt })
+      )
+    );
+    
+    return { success: true, deletedCount: toDelete.size };
   },
 });
 
@@ -358,8 +400,187 @@ export const allResponseGraphs = query({
       // Store by anchorId if it exists, otherwise by chatId
       const key = anchorId || chat._id;
       graphs.set(key, { anchor, nodes, edges });
+      
+      // Also store by chatId for cross-reference lookups
+      if (anchorId && anchorId !== (chat._id as string)) {
+        graphs.set(chat._id as string, { anchor, nodes, edges });
+      }
     }
     
     return Object.fromEntries(graphs);
+  },
+});
+
+// Helper function to build complete path from root to a specific message, including inheritance
+async function buildPathToMessage(ctx: any, targetMessage: any, visitedChats = new Set()): Promise<any[]> {
+  // Prevent infinite recursion if there are circular concept dependencies
+  if (visitedChats.has(targetMessage.chatId)) {
+    return [];
+  }
+  visitedChats.add(targetMessage.chatId);
+  // First, build the path within the target message's chat
+  const messages = await ctx.db
+    .query("messages")
+    .withIndex("by_chat", (q: any) => q.eq("chatId", targetMessage.chatId))
+    .order("asc")
+    .collect();
+  
+  // Filter out deleted messages
+  const activeMessages = messages.filter((m: any) => !m.deletedAt);
+  
+  // Build index by id
+  const byId = new Map(activeMessages.map((m: any) => [m._id, m]));
+  
+  // Build path from target back to root within this chat
+  const currentChatPath: any[] = [];
+  let current = targetMessage;
+  const visited = new Set();
+  
+  while (current && !visited.has(current._id)) {
+    currentChatPath.unshift(current);
+    visited.add(current._id);
+    current = current.parentMessageId ? byId.get(current.parentMessageId) : null;
+  }
+  
+  // Check if this chat itself has inherited context (is concept-anchored)
+  const chat = await ctx.db.get(targetMessage.chatId);
+  if (!chat?.conceptId) {
+    // No inheritance, return just the current chat path
+    return currentChatPath;
+  }
+  
+  const concept = await ctx.db.get(chat.conceptId);
+  if (!concept?.sourceMessageId) {
+    // No source message, return just the current chat path
+    return currentChatPath;
+  }
+  
+  // Get the source message this concept was derived from
+  const sourceMessage = await ctx.db.get(concept.sourceMessageId);
+  if (!sourceMessage) {
+    // Source message doesn't exist, return just the current chat path
+    return currentChatPath;
+  }
+  
+  // Recursively get the inherited path from the source message
+  const inheritedPath = await buildPathToMessage(ctx, sourceMessage, visitedChats);
+  
+  // Combine inherited path with current chat path
+  return [...inheritedPath, ...currentChatPath];
+}
+
+// Helper function to build complete inheritance chain recursively
+async function buildCompleteInheritanceChain(ctx: any, sourceMessage: any, visitedChats = new Set()): Promise<any[]> {
+  // Prevent infinite recursion
+  if (visitedChats.has(sourceMessage.chatId)) {
+    return [];
+  }
+  visitedChats.add(sourceMessage.chatId);
+  
+  // First, get the path to the source message within its own chat
+  const sourceMessagePath = await buildPathToMessage(ctx, sourceMessage, new Set());
+  
+  // Check if the source message's chat has its own inherited context
+  const sourceChat = await ctx.db.get(sourceMessage.chatId);
+  if (!sourceChat?.conceptId) {
+    // No further inheritance, return just the source message path
+    return sourceMessagePath;
+  }
+  
+  const sourceConcept = await ctx.db.get(sourceChat.conceptId);
+  if (!sourceConcept?.sourceMessageId) {
+    // No source message for the concept, return just the source message path
+    return sourceMessagePath;
+  }
+  
+  // Get the parent source message
+  const parentSourceMessage = await ctx.db.get(sourceConcept.sourceMessageId);
+  if (!parentSourceMessage) {
+    // Parent source message doesn't exist, return just the source message path
+    return sourceMessagePath;
+  }
+  
+  // Recursively get the inheritance chain from the parent
+  const parentInheritanceChain = await buildCompleteInheritanceChain(ctx, parentSourceMessage, visitedChats);
+  
+  // Combine parent inheritance with current path and deduplicate by message ID
+  const combinedMessages = [...parentInheritanceChain, ...sourceMessagePath];
+  const seenMessageIds = new Set();
+  const deduplicated = combinedMessages.filter(message => {
+    if (seenMessageIds.has(message._id)) {
+      return false;
+    }
+    seenMessageIds.add(message._id);
+    return true;
+  });
+  
+  return deduplicated;
+}
+
+export const listByConceptChat = query({
+  args: {
+    chatId: v.id("chats"),
+  },
+  handler: async (ctx, args) => {
+    const chat = await ctx.db.get(args.chatId);
+    if (!chat) {
+      throw new Error("Chat not found");
+    }
+    
+    // Get current chat messages
+    const currentMessages = await ctx.db
+      .query("messages")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .order("asc")
+      .collect();
+    
+    // Filter out deleted messages
+    const activeCurrentMessages = currentMessages.filter((m) => !m.deletedAt);
+    
+    // Check if this is a concept-anchored chat with inherited context
+    if (!chat.conceptId) {
+      return {
+        inheritedMessages: [],
+        currentMessages: activeCurrentMessages,
+        hasInheritedContext: false,
+      };
+    }
+    
+    const concept = await ctx.db.get(chat.conceptId);
+    if (!concept?.sourceMessageId) {
+      return {
+        inheritedMessages: [],
+        currentMessages: activeCurrentMessages,
+        hasInheritedContext: false,
+      };
+    }
+    
+    // Get the source message that the concept was derived from
+    const sourceMessage = await ctx.db.get(concept.sourceMessageId);
+    if (!sourceMessage) {
+      return {
+        inheritedMessages: [],
+        currentMessages: activeCurrentMessages,
+        hasInheritedContext: false,
+      };
+    }
+    
+    // Build complete inheritance chain recursively
+    const inheritedMessages = await buildCompleteInheritanceChain(ctx, sourceMessage);
+    
+    // Mark all inherited messages
+    const markedInheritedMessages = inheritedMessages.map((m) => ({
+      ...m,
+      isInherited: true,
+      inheritedFromChatId: m.chatId, // Keep original chat ID for each message
+    }));
+    
+    return {
+      inheritedMessages: markedInheritedMessages,
+      currentMessages: activeCurrentMessages,
+      hasInheritedContext: true,
+      conceptId: chat.conceptId,
+      sourceMessageId: concept.sourceMessageId,
+    };
   },
 });

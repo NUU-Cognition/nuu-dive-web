@@ -42,7 +42,7 @@ The application uses a **tree-based message structure** where every message has 
 - Messages form a tree via `parentMessageId` relationships
 - Each message has a `depth` property for rendering indentation
 - Branching occurs when multiple messages share the same `parentMessageId`
-- See `components/chat/ChatPanel.tsx:187-206` for tree building logic
+- See `components/chat/ChatPanelV2.tsx` for tree building logic
 
 **Database Schema (Convex):**
 - `convex/schema.ts` defines the complete data model
@@ -101,7 +101,7 @@ ALLOW_DEV_NO_AUTH=1
 ## Key Implementation Details
 
 **Message Tree Rendering:**
-- `buildMessageTree()` and `renderMessageTree()` in ChatPanel handle tree visualization
+- Message tree visualization is handled in ChatPanelV2
 - Recent updates include deduplication and stable path-based keys for React rendering
 - Each message can be branched from, creating new conversation paths
 

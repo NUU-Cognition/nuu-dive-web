@@ -40,6 +40,81 @@ interface Concept {
   snippet: string;
   sourceType: "url" | "pdf" | "chat";
   documentId?: string;
+  sourceMessageId?: string;
+}
+
+/**
+ * Find source response node for a chat-sourced concept
+ */
+function findSourceResponseNode(
+  responseGraphs: Map<string, ResponseGraph>, 
+  concept: Concept,
+  documents?: Document[],
+  concepts?: Concept[]
+): { nodeId: string; position: { x: number; y: number } } | null {
+  // Only look for chat-sourced concepts (those with sourceMessageId)
+  if (concept.sourceType !== "chat" || !concept.sourceMessageId) {
+    return null;
+  }
+  
+  
+  // Search through all response graphs to find the source message or its related response
+  for (const [, graph] of responseGraphs) {
+    // First, try to find the source message directly (if it's an assistant message)
+    let responseNode = graph.nodes.find(n => n.id === concept.sourceMessageId);
+    
+    // If not found, the source might be a user message - find the assistant response to it
+    if (!responseNode) {
+      // Look through edges to find an assistant response that was prompted by this user message
+      for (const edge of graph.edges) {
+        if (edge.promptId === concept.sourceMessageId) {
+          responseNode = graph.nodes.find(n => n.id === edge.to.id);
+          break;
+        }
+      }
+    }
+    
+    if (responseNode) {
+      // Calculate approximate position based on anchor type and position
+      let basePosition = { x: 50, y: 50 };
+      
+      // Try to determine position based on anchor
+      if (graph.anchor.type === "document" && documents) {
+        const doc = documents.find(d => d._id === graph.anchor.id);
+        if (doc) {
+          const docIndex = documents.indexOf(doc);
+          basePosition = { x: 50, y: 50 + docIndex * 400 };
+        }
+      } else if (graph.anchor.type === "concept" && concepts) {
+        const parentConcept = concepts.find(c => c._id === graph.anchor.id);
+        if (parentConcept?.documentId && documents) {
+          const doc = documents.find(d => d._id === parentConcept.documentId);
+          if (doc) {
+            const docIndex = documents.indexOf(doc);
+            const docConcepts = concepts.filter(c => c.documentId === doc._id);
+            const conceptIndex = docConcepts.indexOf(parentConcept);
+            basePosition = { x: 400, y: 50 + docIndex * 400 + conceptIndex * 80 };
+          }
+        } else {
+          basePosition = { x: 800, y: 50 };
+        }
+      }
+      
+      // Estimate response node position based on its order in the graph
+      const nodeIndex = graph.nodes.indexOf(responseNode);
+      const responsePosition = {
+        x: basePosition.x + 250,
+        y: basePosition.y + 50 + nodeIndex * 40,
+      };
+      
+      return {
+        nodeId: `response-${responseNode.id}`,
+        position: responsePosition,
+      };
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -82,7 +157,7 @@ export function buildGraphElements(
     
     // Position concepts related to this document
     const docConcepts = concepts.filter(c => c.documentId === doc._id);
-    let conceptX = 400;
+    const conceptX = 400;
     
     docConcepts.forEach((concept, idx) => {
       const conceptNodeId = `concept-${concept._id}`;
@@ -143,16 +218,55 @@ export function buildGraphElements(
     docY += docSpacing;
   });
   
-  // Add standalone concepts (not from documents)
+  // Add standalone concepts (not from documents) and chat-sourced concepts
   const standaloneConcepts = concepts.filter(c => !c.documentId);
   let standaloneY = 50;
   
   standaloneConcepts.forEach((concept) => {
     const conceptNodeId = `concept-${concept._id}`;
+    
+    // Check if this concept was derived from a chat message
+    const sourceInfo = findSourceResponseNode(responseGraphs, concept, documents, concepts);
+    
+    let conceptPosition;
+    if (sourceInfo) {
+      // Position relative to source response node
+      conceptPosition = { 
+        x: sourceInfo.position.x + 350, 
+        y: sourceInfo.position.y 
+      };
+      
+      // Create edge from source response to concept
+      edges.push({
+        id: `${sourceInfo.nodeId}-${conceptNodeId}`,
+        source: sourceInfo.nodeId,
+        target: conceptNodeId,
+        type: "smoothstep",
+        style: { 
+          stroke: "#10b981", 
+          strokeWidth: 2,
+          strokeDasharray: "5,5"
+        },
+        label: "concept",
+        labelStyle: {
+          fontSize: 11,
+          fill: "#10b981",
+        },
+        labelBgStyle: {
+          fill: "#f0fdf4",
+          fillOpacity: 0.9,
+        },
+      });
+    } else {
+      // Standalone concept (not from documents or chats)
+      conceptPosition = { x: 800, y: standaloneY };
+      standaloneY += 200;
+    }
+    
     nodes.push({
       id: conceptNodeId,
       type: "conceptNode",
-      position: { x: 800, y: standaloneY },
+      position: conceptPosition,
       data: {
         title: concept.title,
         snippet: concept.snippet,
@@ -164,10 +278,15 @@ export function buildGraphElements(
     // Add response nodes for this concept
     const responseGraph = responseGraphs.get(concept._id);
     if (responseGraph) {
+      const responseStartPosition = {
+        x: conceptPosition.x + 250,
+        y: conceptPosition.y,
+      };
+      
       const { responseNodes, responseEdges } = buildResponseSubgraph(
         responseGraph,
         conceptNodeId,
-        { x: 1050, y: standaloneY },
+        responseStartPosition,
         selectedId,
         onNodeClick,
         pendingByChat[responseGraph.anchor.chatId]
@@ -175,12 +294,10 @@ export function buildGraphElements(
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
     }
-    
-    standaloneY += 200;
   });
   
   // Add free chats (chats without anchors)
-  const freeChats: any[] = [];
+  const freeChats: { graph: ResponseGraph; chatId: string }[] = [];
   responseGraphs.forEach((graph, key) => {
     // Check if this key is already handled (as document or concept)
     const isDocument = documents.some(d => d._id === key);
@@ -194,7 +311,7 @@ export function buildGraphElements(
   
   // Render free chats in a separate section
   if (freeChats.length > 0) {
-    let freeChatY = Math.max(docY, standaloneY) + 100;
+    const freeChatY = Math.max(docY, standaloneY) + 100;
     
     // Add a label node for free chats section
     nodes.push({
@@ -264,7 +381,7 @@ function buildResponseSubgraph(
   
   // NOTE: no placeholder anymore — clean surface when empty
   
-  graph.nodes.forEach((node, idx) => {
+  graph.nodes.forEach((node) => {
     const nodeId = `response-${node.id}`;
     responseNodes.push({
       id: nodeId,
