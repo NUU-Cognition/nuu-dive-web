@@ -39,8 +39,11 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
         className="!opacity-0 !pointer-events-none"
       />
 
+      {/* Expanded invisible hit area for better cursor interaction */}
+      <div className="absolute -inset-4 rounded-full" />
+      
       {/* Response dot / Loading spinner */}
-      <div className="relative w-3.5 h-3.5" title={data.loading ? "Generating…" : preview}>
+      <div className="relative w-3.5 h-3.5 z-10" title={data.loading ? "Generating…" : preview}>
         {data.loading ? (
           <>
             <div

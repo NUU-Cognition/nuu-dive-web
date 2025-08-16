@@ -311,40 +311,7 @@ export function ConceptNoteEditor({
             ref={textareaRef}
             value={currentNote}
             onChange={(e) => setCurrentNote(e.target.value)}
-            placeholder="Write your markdown note here...
-
-# Getting Started
-Use the toolbar above to format your text, or type markdown directly:
-
-## Formatting
-- **Bold text** with **asterisks**
-- *Italic text* with *single asterisks*
-- `Inline code` with backticks
-- [Links](https://example.com) with brackets
-
-## Lists & Structure
-- Bullet lists with dashes
-1. Numbered lists with numbers
-- [ ] Task lists with checkboxes
-- [x] Completed tasks
-
-## Advanced Features
-> Blockquotes with greater than symbol
-
-```javascript
-// Code blocks with syntax highlighting
-function hello() {
-  console.log('Hello, world!');
-}
-```
-
-| Tables | Are | Supported |
-|--------|-----|-----------|
-| Cell 1 | Cell 2 | Cell 3 |
-
----
-
-Try editing and switching to Preview mode to see the rendered result!"
+            placeholder={"Write your markdown note here...\n\n# Getting Started\nUse the toolbar above to format your text, or type markdown directly:\n\n## Formatting\n- **Bold text** with **asterisks**\n- *Italic text* with *single asterisks*\n- `Inline code` with backticks\n- [Links](https://example.com) with brackets\n\n## Lists & Structure\n- Bullet lists with dashes\n1. Numbered lists with numbers\n- [ ] Task lists with checkboxes\n- [x] Completed tasks\n\n## Advanced Features\n> Blockquotes with greater than symbol\n\n```javascript\n// Code blocks with syntax highlighting\nfunction hello() {\n  console.log('Hello, world!');\n}\n```\n\n| Tables | Are | Supported |\n|--------|-----|-----------|\n| Cell 1 | Cell 2 | Cell 3 |\n\n---\n\nTry editing and switching to Preview mode to see the rendered result!"}
             className="h-full w-full resize-none border-0 focus:ring-0 rounded-none p-4 font-mono text-sm leading-relaxed"
             disabled={isSaving}
           />
