@@ -26,6 +26,7 @@ import DocumentPanel from "@/components/document/DocumentPanel";
 import CanvasView from "@/components/canvas/CanvasView";
 import RightDock from "@/components/layout/RightDock";
 import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
+import { ConceptNoteEditor } from "@/components/concept/ConceptNoteEditor";
 
 function DiveWorkspaceContent() {
   const params = useParams();
@@ -39,7 +40,18 @@ function DiveWorkspaceContent() {
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
-  const { selectedConceptId, selectedChatId, selectedDocumentId, setSelectedChat, setSelectedDocument, addDocument } = useWorkspace();
+  const { 
+    selectedConceptId, 
+    selectedChatId, 
+    selectedDocumentId, 
+    editingConceptNoteId,
+    concepts,
+    setSelectedChat, 
+    setSelectedDocument, 
+    setEditingConceptNoteId,
+    addDocument,
+    updateConcept
+  } = useWorkspace();
   
   // Convex mutations
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
@@ -287,7 +299,16 @@ function DiveWorkspaceContent() {
 
           {/* Center main panel */}
           <div className="flex-1 min-w-0">
-            {selectedDocumentId ? (
+            {editingConceptNoteId ? (
+              <ConceptNoteEditor
+                conceptTitle={concepts.find(c => c._id === editingConceptNoteId)?.title || "Unknown Concept"}
+                note={concepts.find(c => c._id === editingConceptNoteId)?.note || ""}
+                onSave={async (note) => {
+                  await updateConcept(editingConceptNoteId, { note });
+                }}
+                onClose={() => setEditingConceptNoteId(null)}
+              />
+            ) : selectedDocumentId ? (
               <DocumentPanel
                 layout="main"
                 documentId={selectedDocumentId}

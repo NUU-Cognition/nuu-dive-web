@@ -13,7 +13,7 @@ interface ResponseGraphNode {
   tokenCount?: number;
 }
 
-interface ResponseGraphEdge {
+export interface ResponseGraphEdge {
   from: { type: string; id: string };
   to: { type: string; id: string };
   label: string;       // truncated prompt for display
@@ -42,6 +42,7 @@ interface Concept {
   _id: string;
   title: string;
   snippet: string;
+  note?: string;
   sourceType: "url" | "pdf" | "chat";
   documentId?: string;
   sourceMessageId?: string;
@@ -131,6 +132,7 @@ export function buildGraphElements(
   selectedId?: string | null,
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
   pendingByChat: Record<string, Pending | undefined> = {},
+  onConceptDoubleClick?: (conceptId: string) => void,
   selectedNodePath?: string[] // ADD THIS PARAMETER
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
@@ -175,6 +177,8 @@ export function buildGraphElements(
           snippet: concept.snippet,
           sourceType: concept.sourceType,
           selected: selectedId === concept._id,
+          hasNote: concept.note && concept.note.trim().length > 0,
+          onDoubleClick: () => onConceptDoubleClick?.(concept._id),
         },
       });
       
@@ -279,6 +283,8 @@ export function buildGraphElements(
         snippet: concept.snippet,
         sourceType: concept.sourceType,
         selected: selectedId === concept._id,
+        hasNote: concept.note && concept.note.trim().length > 0,
+        onDoubleClick: () => onConceptDoubleClick?.(concept._id),
       },
     });
     

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { type Id } from "@/convex/_generated/dataModel";
 import CreateConceptDialog from "@/components/concept/CreateConceptDialog";
+import { ConceptCreationTooltip } from "./ConceptCreationTooltip";
 
 interface ChatPanelProps {
   chatId: string;
@@ -56,6 +57,8 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState("");
   const [createConceptOpen, setCreateConceptOpen] = useState(false);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<{ _id: string; content: string; role: string } | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -381,10 +384,19 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   };
 
   // Handle text selection from messages
-  const handleTextSelection = () => {
+  const handleTextSelection = (event: React.MouseEvent) => {
     const selection = window.getSelection();
     if (selection && selection.toString().trim()) {
       const selectedText = selection.toString().trim();
+      
+      // Only show tooltip for selections of reasonable length (avoid accidental single clicks)
+      if (selectedText.length < 3) {
+        return;
+      }
+      
+      // Get cursor position for tooltip
+      const tooltipX = event.clientX;
+      const tooltipY = event.clientY;
       
       // Find which message contains the selected text
       const range = selection.getRangeAt(0);
@@ -411,15 +423,34 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             content: sourceMessage.content,
             role: sourceMessage.role,
           });
-          setCreateConceptOpen(true);
+          
+          // Show tooltip instead of directly opening dialog
+          setTooltipPosition({ x: tooltipX, y: tooltipY });
+          setTooltipVisible(true);
         }
       } else {
         // Fallback: just set the selected text without message context
         setSelectedText(selectedText);
         setSelectedMessageForConcept(null);
-        setCreateConceptOpen(true);
+        
+        // Show tooltip instead of directly opening dialog
+        setTooltipPosition({ x: tooltipX, y: tooltipY });
+        setTooltipVisible(true);
       }
     }
+  };
+
+  // Handle concept creation from tooltip
+  const handleCreateConceptFromTooltip = () => {
+    setTooltipVisible(false);
+    setCreateConceptOpen(true);
+  };
+
+  // Handle tooltip close
+  const handleTooltipClose = () => {
+    setTooltipVisible(false);
+    // Clear selection to remove highlight
+    window.getSelection()?.removeAllRanges();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -660,6 +691,15 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Concept Creation Tooltip */}
+      <ConceptCreationTooltip
+        isVisible={tooltipVisible}
+        position={tooltipPosition}
+        selectedText={selectedText}
+        onCreateConcept={handleCreateConceptFromTooltip}
+        onClose={handleTooltipClose}
+      />
     </div>
   );
 }
