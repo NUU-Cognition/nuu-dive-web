@@ -229,12 +229,15 @@ export function WorkspaceProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [(selectedConceptDetail as any)?.chat?._id, selectedChatId]);
 
-  // Default selection: first concept
+  // Track if user has manually cleared selections
+  const [hasManuallyCleared, setHasManuallyCleared] = useState(false);
+
+  // Default selection: first concept (only if not manually cleared)
   useEffect(() => {
-    if (!selectedConceptId && concepts.length > 0 && concepts[0]?._id) {
+    if (!selectedConceptId && concepts.length > 0 && concepts[0]?._id && !hasManuallyCleared) {
       setSelectedConceptId(concepts[0]._id as string);
     }
-  }, [conceptsLoading, concepts, selectedConceptId]);
+  }, [conceptsLoading, concepts, selectedConceptId, hasManuallyCleared]);
 
   // Mutations
   const createConcept = useMutation(api.concepts.create);
@@ -334,6 +337,12 @@ export function WorkspaceProvider({
   const setSelectedConcept = useCallback((conceptId: string | null) => {
     setSelectedConceptId(conceptId);
     setSelectedDocumentId(null);
+    // Track when user manually clears selection or makes a new selection
+    if (conceptId === null) {
+      setHasManuallyCleared(true);
+    } else {
+      setHasManuallyCleared(false);
+    }
   }, []);
 
   const setSelectedChat = useCallback((chatId: string | null) => {
