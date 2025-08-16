@@ -27,16 +27,16 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
       className="relative group cursor-pointer"
       onClick={data.onClick}
     >
-      {/* Input handle (top) */}
+      {/* Hidden handles for edge connections */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-transparent !border-0 !w-3 !h-3"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="target" 
         position={Position.Left} 
-        className="!bg-transparent !border-0 !w-3 !h-3"
+        className="!opacity-0 !pointer-events-none"
       />
 
       {/* Response dot / Loading spinner */}
@@ -85,16 +85,16 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
         </div>
       </div>
 
-      {/* Output handle (bottom) */}
+      {/* Hidden handles for edge connections */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-transparent !border-0 !w-3 !h-3"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="source" 
         position={Position.Right} 
-        className="!bg-transparent !border-0 !w-3 !h-3"
+        className="!opacity-0 !pointer-events-none"
       />
     </div>
   );
