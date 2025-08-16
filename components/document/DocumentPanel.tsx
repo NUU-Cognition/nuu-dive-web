@@ -10,6 +10,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useStreamChat } from "@/hooks/useStreamChat";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 
 const PdfViewer = dynamic(() => import("./PdfViewer"), { ssr: false });
 
@@ -180,9 +181,9 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
           <div className="h-full">
             <PdfViewer
               documentId={documentId}
-              fileId={(document as any).pdfId}
-              externalUrl={!(document as any).pdfId ? document.url : undefined}
-              fileName={(document as any)?.pdfMeta?.fileName || document.title}
+              fileId={(document as { pdfId?: string }).pdfId}
+              externalUrl={!(document as { pdfId?: string }).pdfId ? document.url : undefined}
+              fileName={(document as { pdfMeta?: { fileName?: string } })?.pdfMeta?.fileName || document.title}
               existingHighlights={
                 // Get highlights from concepts tied to this document
                 []  // TODO: Query concepts and extract their highlights
@@ -190,17 +191,47 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
             />
           </div>
         ) : (
-          // Previous questions area for URLs
-          documentChats && documentChats.length > 0 ? (
-            <div className="p-4 overflow-y-auto h-full">
-              <p className="text-xs text-muted-foreground mb-2">Previous questions:</p>
-              {/* TODO: Show message tree here */}
+          <div className="h-full flex items-center justify-center p-6">
+            <div className="max-w-md text-center space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">View this page with Dive</h3>
+                <p className="text-sm text-muted-foreground">
+                  The embedded preview has been removed for better compatibility.
+                  Use the Dive Chrome extension to highlight text and create concepts directly on any webpage.
+                </p>
+              </div>
+              
+              <div className="flex flex-col gap-3">
+                <a
+                  href={document.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open Website
+                </a>
+                
+                <Link
+                  href="/settings/tokens"
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                >
+                  Get Extension Token
+                </Link>
+              </div>
+              
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground">
+                  With the extension installed, you can:
+                </p>
+                <ul className="text-xs text-muted-foreground mt-2 space-y-1 text-left">
+                  <li>• Select any text to create concepts</li>
+                  <li>• Chat about the current page</li>
+                  <li>• See your highlights on return visits</li>
+                </ul>
+              </div>
             </div>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Ask something about this document…
-            </div>
-          )
+          </div>
         )}
       </div>
       

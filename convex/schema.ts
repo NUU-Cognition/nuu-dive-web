@@ -124,4 +124,15 @@ export default defineSchema({
     createdBy: v.id("users"),
     createdAt: v.number(),
   }).index("by_anchor", ["anchorMessageId"]),
+
+  extensionTokens: defineTable({
+    userId: v.id("users"),
+    label: v.string(),
+    hash: v.string(), // sha256(token + salt)
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_hash", ["hash"]),
 });
