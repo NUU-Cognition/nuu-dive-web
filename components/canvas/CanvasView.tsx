@@ -277,6 +277,10 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        edgesFocusable={false}
+        edgesUpdatable={false}
         fitView
         attributionPosition="bottom-left"
       >

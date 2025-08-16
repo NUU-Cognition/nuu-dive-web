@@ -18,15 +18,16 @@ interface ConceptNodeProps {
 const ConceptNode = memo(({ data }: ConceptNodeProps) => {
   return (
     <>
+      {/* Hidden handles for edge connections */}
       <Handle 
         type="target" 
         position={Position.Top} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="target" 
         position={Position.Left} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
       <div
         className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all cursor-pointer group ${
@@ -78,15 +79,16 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
           Double-click to edit note
         </div>
       </div>
+      {/* Hidden handles for edge connections */}
       <Handle 
         type="source" 
         position={Position.Bottom} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="source" 
         position={Position.Right} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
     </>
   );

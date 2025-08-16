@@ -33,16 +33,16 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
         min-w-[280px] max-w-[320px]
       `}
     >
-      {/* Input handle (top) */}
+      {/* Hidden handles for edge connections */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-primary !w-2 !h-2"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="target" 
         position={Position.Left} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
 
       {/* Header */}
@@ -98,16 +98,16 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
         </button>
       </div>
 
-      {/* Output handle (bottom) */}
+      {/* Hidden handles for edge connections */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-primary !w-2 !h-2"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="source" 
         position={Position.Right} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
     </div>
   );
