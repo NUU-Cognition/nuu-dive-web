@@ -81,22 +81,76 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
   // Build and layout the graph
   useEffect(() => {
-    // If we have a selected chat, try to mark its current leaf response as selected
-    const selectedResponseId = selectedChatId ? getLeafForChat(selectedChatId) : undefined;
+    if (!selectedChatId || selectedNode.length === 0) return;
 
-    const handleNodeClick = (nodeId: string, nodeType: string, extra?: { chatId?: string }) => {
-      if (nodeType === "document") {
-        setSelectedDocument(nodeId);
-      } else if (nodeType === "concept") {
-        setSelectedConcept(nodeId ?? null);
-      } else if (nodeType === "response") {
-        const chatId = extra?.chatId;
-        if (chatId) {
-          setSelectedChat(chatId);
-          setLeafForChat(chatId, nodeId); // nodeId is the response message _id
-        }
+    const currentLeaf = getLeafForChat(selectedChatId);
+    if (!currentLeaf) return;
+
+    const currentLeafNodeId = `response-${currentLeaf}`;
+    
+    // If the current leaf is not in the selected path, extend the path
+    if (!selectedNode.includes(currentLeafNodeId)) {
+      // Check if the current leaf is a descendant of the last node in the selected path
+      const lastSelectedNode = selectedNode[selectedNode.length - 1];
+      
+      // Build a temporary graph to check relationships
+      const tempEdges: Edge[] = [];
+      responseGraphs.forEach((graph) => {
+        graph.edges.forEach((edge) => {
+          const sourceId = edge.from.type === "response" 
+            ? `response-${edge.from.id}`
+            : (edge.from.type === "concept" ? `concept-${edge.from.id}` : `doc-${edge.from.id}`);
+          const targetId = `response-${edge.to.id}`;
+          tempEdges.push({ id: `${sourceId}-${targetId}`, source: sourceId, target: targetId });
+        });
+      });
+
+      // Check if current leaf is reachable from the last selected node
+      const pathToNewLeaf = findPathToRoot(currentLeafNodeId, tempEdges);
+      const lastSelectedIndex = pathToNewLeaf.indexOf(lastSelectedNode);
+      
+      if (lastSelectedIndex !== -1) {
+        // Extend the path to include the new leaf
+        const newPath = [...selectedNode, ...pathToNewLeaf.slice(lastSelectedIndex + 1)];
+        setSelectedNode(newPath);
       }
-    };
+    }
+  }, [selectedChatId, getLeafForChat, selectedNode, responseGraphs, findPathToRoot]);
+    // If we have a selected chat, try to mark its current leaf response as selected
+    // const selectedResponseId = selectedChatId ? getLeafForChat(selectedChatId) : undefined;
+
+    // const handleNodeClick = (nodeId: string, nodeType: string, extra?: { chatId?: string }) => {
+    //   if (nodeType === "document") {
+    //     setSelectedDocument(nodeId);
+    //   } else if (nodeType === "concept") {
+    //     setSelectedConcept(nodeId ?? null);
+    //   } else if (nodeType === "response") {
+    //     const chatId = extra?.chatId;
+    //     if (chatId) {
+    //       setSelectedChat(chatId);
+    //       setLeafForChat(chatId, nodeId); // nodeId is the response message _id
+    //     }
+    //   }
+
+    // };
+
+  useEffect(() => {
+  // If we have a selected chat, try to mark its current leaf response as selected
+  const selectedResponseId = selectedChatId ? getLeafForChat(selectedChatId) : undefined;
+
+  const handleNodeClick = (nodeId: string, nodeType: string, extra?: { chatId?: string }) => {
+    if (nodeType === "document") {
+      setSelectedDocument(nodeId);
+    } else if (nodeType === "concept") {
+      setSelectedConcept(nodeId ?? null);
+    } else if (nodeType === "response") {
+      const chatId = extra?.chatId;
+      if (chatId) {
+        setSelectedChat(chatId);
+        setLeafForChat(chatId, nodeId); // nodeId is the response message _id
+      }
+    }
+  };
 
     const { nodes: graphNodes, edges: graphEdges } = buildGraphElements(
       documents,
