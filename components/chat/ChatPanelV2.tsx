@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Send, GitBranch, Paperclip, Info } from "lucide-react";
+import { Send, GitBranch, Paperclip, Info, ChevronRight } from "lucide-react";
 import MessageItem from "./MessageItem";
 import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
@@ -28,6 +28,7 @@ interface ChatPanelProps {
   chatId: string;
   conceptId: string | null;
   onClose: () => void;
+  onCollapse?: () => void;
 }
 
 // Message interface is imported from useConvexChat hook
@@ -45,7 +46,7 @@ function generateFirstPrompt(text: string): string {
   return `Tell me about: ${text.trim()}`;
 }
 
-export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelProps) {
+export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: ChatPanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
   const [inclusionOverride, setInclusionOverride] = useState<{ includeIds?: string[]; excludeIds?: string[] } | undefined>(undefined);
@@ -487,13 +488,17 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             messages={path}
             currentMessageId={pathLeaf?._id}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {onCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCollapse}
+              aria-label="Collapse Chat panel"
+              title="Collapse"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
