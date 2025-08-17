@@ -2,9 +2,16 @@ import { useState, useCallback, useRef, useEffect } from "react";
 
 interface StreamChatOptions {
   onToken?: (token: string) => void;
-  onComplete?: (fullText: string, messageId: string) => void;
+  /**
+   * Fired once the server has created the assistant message placeholder.
+   * Includes the originating chat and the parent message this stream is branching from.
+   */
+  onStart?: (info: { messageId: string; chatId: string; parentMessageId?: string }) => void;
+  /**
+   * Fired when the stream completes. Includes the same anchoring metadata.
+   */
+  onComplete?: (info: { fullText: string; messageId: string; chatId: string; parentMessageId?: string }) => void;
   onError?: (error: string) => void;
-  onStart?: (info: { messageId: string }) => void;
 }
 
 export function useStreamChat(options: StreamChatOptions = {}) {
@@ -100,7 +107,12 @@ export function useStreamChat(options: StreamChatOptions = {}) {
                 switch (parsed.type) {
                   case "start":
                     if (parsed.messageId) {
-                      options.onStart?.({ messageId: String(parsed.messageId) });
+                      const mid = String(parsed.messageId);
+                      options.onStart?.({
+                        messageId: mid,
+                        chatId,
+                        parentMessageId,
+                      });
                     }
                     break;
                     
@@ -111,7 +123,12 @@ export function useStreamChat(options: StreamChatOptions = {}) {
                     
                   case "complete":
                     setStreamedText(parsed.content);
-                    options.onComplete?.(parsed.content, parsed.messageId);
+                    options.onComplete?.({
+                      fullText: parsed.content as string,
+                      messageId: String(parsed.messageId),
+                      chatId,
+                      parentMessageId,
+                    });
                     break;
                     
                   case "error":
