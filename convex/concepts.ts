@@ -149,3 +149,45 @@ export const update = mutation({
     return { success: true };
   },
 });
+
+export const deleteWithChat = mutation({
+  args: {
+    conceptId: v.id("concepts"),
+  },
+  handler: async (ctx, args) => {
+    const concept = await ctx.db.get(args.conceptId);
+    if (!concept) {
+      throw new Error("Concept not found");
+    }
+    
+    // Find associated chat
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_concept", (q) => q.eq("conceptId", args.conceptId))
+      .first();
+    
+    if (chat) {
+      // Get all messages in this chat
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+        .collect();
+      
+      // Soft delete all messages
+      const deletedAt = Date.now();
+      await Promise.all(
+        messages.map((message) =>
+          ctx.db.patch(message._id, { deletedAt })
+        )
+      );
+      
+      // Delete the chat
+      await ctx.db.delete(chat._id);
+    }
+    
+    // Delete the concept
+    await ctx.db.delete(args.conceptId);
+    
+    return { success: true };
+  },
+});

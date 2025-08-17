@@ -12,6 +12,7 @@ interface ConceptNodeProps {
     selected: boolean;
     hasNote?: boolean;
     onDoubleClick?: () => void;
+    editMode?: boolean;
   };
 }
 
@@ -31,13 +32,15 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
       />
       <div
         className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all cursor-pointer group ${
-          data.selected 
-            ? "border-primary ring-2 ring-primary/20" 
-            : "border-border hover:border-primary/50 hover:shadow-md"
+          data.editMode 
+            ? "border-destructive/50 ring-2 ring-destructive/30 hover:border-destructive hover:ring-destructive/50" 
+            : data.selected 
+              ? "border-primary ring-2 ring-primary/20" 
+              : "border-border hover:border-primary/50 hover:shadow-md"
         }`}
         style={{ width: 200 }}
         onDoubleClick={data.onDoubleClick}
-        title="Double-click to edit note"
+        title={data.editMode ? "Click to delete concept and all related responses" : "Double-click to edit note"}
       >
         <div className="flex justify-between">
           {/* Left side - Text content */}

@@ -17,10 +17,12 @@ import DocumentNode from "./DocumentNode";
 import ResponseNode from "./ResponseNode";
 import { buildGraphElements, autoLayout, type ResponseGraphEdge } from "./graphBuilders";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { Scissors, Edit3 } from "lucide-react";
 
 interface CanvasViewProps {
   diveId: string;
@@ -53,6 +55,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
   
   // Get ALL response graphs for this dive at once
   const allGraphs = useQuery(
@@ -67,6 +70,11 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     return new Map(Object.entries(allGraphs));
   }, [allGraphs]);
 
+  // Deletion mutations
+  const deleteMessage = useMutation(api.messages.deleteWithChildren);
+  const deleteConcept = useMutation(api.concepts.deleteWithChat);
+  const deleteDocument = useMutation(api.documents.deleteWithRelated);
+
   const findPathToRoot = useCallback((clickedNodeId: string, edges: Edge[]) => {
     const path: string[] = [];
     let currentNodeId: string | undefined = clickedNodeId;
@@ -78,6 +86,67 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     }
     return path;
   }, []);
+
+  // Deletion handlers
+  const handleDeleteNode = useCallback(async (nodeId: string, nodeType: string) => {
+    if (!editMode) return;
+    
+    const confirmed = window.confirm(`Are you sure you want to delete this ${nodeType}? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      const [type, id] = nodeId.split("-");
+      
+      if (type === "response") {
+        // Delete single response message and its children
+        await deleteMessage({ messageId: id as Id<"messages"> });
+      } else if (type === "concept") {
+        // Delete concept and all its associated chat/responses
+        await deleteConcept({ conceptId: id as Id<"concepts"> });
+        // Clear selection if this concept was selected
+        if (selectedConceptId === id) {
+          setSelectedConcept(null);
+        }
+      } else if (type === "doc") {
+        // Delete document and all related concepts/chats
+        await deleteDocument({ documentId: id as Id<"documents"> });
+        // Clear selection if this document was selected
+        if (selectedDocumentId === id) {
+          setSelectedDocument(null);
+        }
+      }
+      
+      // Clear node selection and chat after deletion
+      setSelectedNode([]);
+      setSelectedChat(null);
+    } catch (error) {
+      console.error(`Failed to delete ${nodeType}:`, error);
+      alert(`Failed to delete ${nodeType}. Please try again.`);
+    }
+  }, [editMode, deleteMessage, deleteConcept, deleteDocument, selectedConceptId, selectedDocumentId, setSelectedConcept, setSelectedDocument, setSelectedChat]);
+
+  const handleDeletePath = useCallback(async (nodeId: string) => {
+    if (!editMode) return;
+    
+    const confirmed = window.confirm("Are you sure you want to delete this conversation path? All responses from this point onwards will be deleted. This action cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      const [type, id] = nodeId.split("-");
+      
+      if (type === "response") {
+        // Delete the response message and all its children (entire branch)
+        await deleteMessage({ messageId: id as Id<"messages"> });
+        
+        // Clear selections
+        setSelectedNode([]);
+        setSelectedChat(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete conversation path:", error);
+      alert("Failed to delete conversation path. Please try again.");
+    }
+  }, [editMode, deleteMessage, setSelectedChat]);
 
   // Build and layout the graph
   useEffect(() => {
@@ -161,6 +230,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       pendingByChat,
       openConceptNote,
       selectedNode,
+      editMode,
     );
 
     // Auto-layout if we have nodes
@@ -181,6 +251,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     selectedDocumentId,
     selectedChatId,
     selectedNode,
+    editMode,
     setNodes,
     setEdges,
     setSelectedConcept,
@@ -194,6 +265,22 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
 
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
+      if (editMode) {
+        // In edit mode, handle deletion based on click type
+        const [type] = node.id.split("-");
+        
+        if (event.shiftKey) {
+          // Shift+click = delete path (conversation branch)
+          handleDeletePath(node.id);
+        } else {
+          // Regular click = delete single node
+          const nodeType = type === "doc" ? "document" : type === "concept" ? "concept" : "response";
+          handleDeleteNode(node.id, nodeType);
+        }
+        return;
+      }
+
+      // Normal mode - selection behavior
       const path = findPathToRoot(node.id, edges);
       setSelectedNode(path);
   
@@ -213,7 +300,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         }
       }
     },
-    [setSelectedConcept, setSelectedDocument, responseGraphs, setSelectedChat, setLeafForChat, findPathToRoot, edges] // ← Add missing deps
+    [editMode, handleDeleteNode, handleDeletePath, setSelectedConcept, setSelectedDocument, responseGraphs, setSelectedChat, setLeafForChat, findPathToRoot, edges]
   );
 
   const enhancedEdges = useMemo(() => {
@@ -262,12 +349,48 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   }, [setSelectedChat, setSelectedConcept, setSelectedDocument]);
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full relative">
+      {/* Edit Mode Toggle Button */}
+      <div className="absolute top-4 right-4 z-50">
+        <Button
+          variant={editMode ? "destructive" : "outline"}
+          size="sm"
+          onClick={() => setEditMode(!editMode)}
+          className={`flex items-center gap-2 ${editMode ? "ring-2 ring-destructive/50" : ""}`}
+          title={editMode ? "Exit edit mode" : "Enter edit mode"}
+        >
+          {editMode ? (
+            <>
+              <Edit3 className="h-4 w-4" />
+              Exit Edit
+            </>
+          ) : (
+            <>
+              <Scissors className="h-4 w-4" />
+              Edit Mode
+            </>
+          )}
+        </Button>
+      </div>
+
       {(documentsLoading || conceptsLoading || graphsLoading) && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-sm">
           <Spinner size="md" label="Building canvas…" />
         </div>
       )}
+      
+      {/* Edit mode instructions */}
+      {editMode && (
+        <div className="absolute top-16 right-4 z-40 bg-destructive/10 border border-destructive/30 rounded-lg p-3 max-w-sm">
+          <p className="text-sm text-destructive font-medium mb-1">Edit Mode Active</p>
+          <p className="text-xs text-muted-foreground">
+            • Click to delete single item<br/>
+            • Shift+click to delete conversation path<br/>
+            • Concept deletion removes all related responses
+          </p>
+        </div>
+      )}
+      
       <ReactFlow
         nodes={nodes}
         edges={enhancedEdges}
@@ -283,6 +406,10 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         edgesUpdatable={false}
         fitView
         attributionPosition="bottom-left"
+        className={editMode ? "canvas-edit-mode" : ""}
+        style={{
+          cursor: editMode ? "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%23dc2626\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"m6 6 5 5m0 0 7-7m-7 7v4a1 1 0 0 0 1 1h4\"/></svg>') 10 10, crosshair" : "default"
+        }}
       >
         <Background 
           variant={BackgroundVariant.Dots} 

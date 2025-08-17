@@ -22,16 +22,23 @@ interface DocumentNodeData {
   selected?: boolean;
   onAsk?: () => void;
   onOpen?: () => void;
+  editMode?: boolean;
 }
 
 function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
   return (
     <div
       className={`
-        rounded-lg border bg-background p-4 shadow-sm transition-all
-        ${selected ? "ring-2 ring-primary/40 shadow-md" : "hover:shadow-md"}
+        rounded-lg border bg-background p-4 shadow-sm transition-all cursor-pointer
+        ${data.editMode 
+          ? "border-destructive/50 ring-2 ring-destructive/30 hover:border-destructive hover:ring-destructive/50" 
+          : selected 
+            ? "ring-2 ring-primary/40 shadow-md" 
+            : "hover:shadow-md"
+        }
         min-w-[280px] max-w-[320px]
       `}
+      title={data.editMode ? "Click to delete document and all related concepts/responses" : undefined}
     >
       {/* Hidden handles for edge connections */}
       <Handle

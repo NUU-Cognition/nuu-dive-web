@@ -133,7 +133,8 @@ export function buildGraphElements(
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
   pendingByChat: Record<string, Pending | undefined> = {},
   onConceptDoubleClick?: (conceptId: string) => void,
-  selectedNodePath?: string[] // ADD THIS PARAMETER
+  selectedNodePath?: string[], // ADD THIS PARAMETER
+  editMode?: boolean // ADD EDIT MODE PARAMETER
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
@@ -159,6 +160,7 @@ export function buildGraphElements(
         onAsk: () => onNodeClick?.(doc._id, "document"),
         // Open in main panel (replace canvas)
         onOpen: () => onNodeClick?.(doc._id, "document"),
+        editMode: editMode || false,
       },
     });
     
@@ -179,6 +181,7 @@ export function buildGraphElements(
           selected: selectedId === concept._id,
           hasNote: concept.note && concept.note.trim().length > 0,
           onDoubleClick: () => onConceptDoubleClick?.(concept._id),
+          editMode: editMode || false,
         },
       });
       
@@ -204,6 +207,7 @@ export function buildGraphElements(
           onNodeClick,
           selectedNodePath, // ADD THIS
           pendingByChat[responseGraph.anchor.chatId],
+          editMode,
         );
         nodes.push(...responseNodes);
         edges.push(...responseEdges);
@@ -221,6 +225,7 @@ export function buildGraphElements(
         onNodeClick,
         selectedNodePath, // ADD THIS
         pendingByChat[docResponseGraph.anchor.chatId],
+        editMode,
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -285,6 +290,7 @@ export function buildGraphElements(
         selected: selectedId === concept._id,
         hasNote: concept.note && concept.note.trim().length > 0,
         onDoubleClick: () => onConceptDoubleClick?.(concept._id),
+        editMode: editMode || false,
       },
     });
     
@@ -304,6 +310,7 @@ export function buildGraphElements(
         onNodeClick,
         selectedNodePath, // ADD THIS
         pendingByChat[responseGraph.anchor.chatId],
+        editMode,
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -367,6 +374,7 @@ export function buildGraphElements(
         onNodeClick,
         selectedNodePath, // ADD THIS
         pendingByChat[graph.anchor.chatId],
+        editMode,
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
@@ -385,8 +393,9 @@ function buildResponseSubgraph(
   startPosition: { x: number; y: number },
   selectedId?: string | null,
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
-  selectedNodePath?: string[] ,
-  pending?: Pending
+  selectedNodePath?: string[],
+  pending?: Pending,
+  editMode?: boolean
 ): { responseNodes: Node[]; responseEdges: Edge[] } {
   const responseNodes: Node[] = [];
   const responseEdges: Edge[] = [];
@@ -418,6 +427,7 @@ function buildResponseSubgraph(
         onClick: () => onNodeClick?.(node.id, "response", { chatId: graph.anchor.chatId }),
         isInPath, // ADD THIS
         hasSelection, // ADD THIS
+        editMode: editMode || false,
       },
     });
     
