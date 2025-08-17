@@ -165,6 +165,22 @@ You can reference specific content from these documents when answering questions
     .filter((a) => a.url || a.title)
     .map((a, i) => `[${a.title || `Source ${i + 1}`}](${a.url || "#"})`);
 
+  // Lightweight document/page context: list attachment titles to orient the model.
+  if (attachments.length > 0) {
+    const titles = attachments
+      .map((a) => a.title)
+      .filter(Boolean)
+      .join(", ");
+    if (titles) {
+      contextMessages.unshift({
+        role: "system",
+        content:
+          `Primary context: you are answering in the context of: ${titles}. ` +
+          `Cite sources when relevant.`,
+      });
+    }
+  }
+
   // TODO: Implement token counting and truncation if needed
   // For now, we'll just return everything
 

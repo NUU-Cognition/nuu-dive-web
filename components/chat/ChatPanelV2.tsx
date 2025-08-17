@@ -8,6 +8,8 @@ import MessageItem from "./MessageItem";
 import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
 import { useStreamChat } from "@/hooks/useStreamChat";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useConvexChat } from "@/hooks/useConvexChat";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useMutation, useQuery } from "convex/react";
@@ -667,8 +669,15 @@ export default function ChatPanelV2({ chatId, conceptId, onCollapse }: ChatPanel
                   <span className="text-sm font-medium">Assistant</span>
                   <span className="text-xs text-muted-foreground">typing...</span>
                 </div>
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <p className="whitespace-pre-wrap">{streamingMessage}</p>
+                <div className="prose prose-sm dark:prose-invert max-w-none
+                                prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
+                                prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
+                                prose-p:my-2 prose-p:leading-relaxed
+                                prose-ul:my-2 prose-ul:list-disc prose-ul:pl-6
+                                prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-6">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {streamingMessage}
+                  </ReactMarkdown>
                 </div>
               </div>
             </div>

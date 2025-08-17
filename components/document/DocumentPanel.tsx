@@ -37,14 +37,14 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
   );
   const documentLoading = document === undefined;
   
-  // Get existing chats for this document
-  const documentChats = useQuery(
-    api.chats.listByAnchor,
-    { anchorType: "document" as const, anchorId: documentId as Id<"documents"> }
+  // Get existing chat for this document
+  const documentChat = useQuery(
+    api.chats.getByDocument,
+    { documentId: documentId as Id<"documents"> }
   );
   
   // Mutations
-  const createChatForDocument = useMutation(api.chats.createForDocument);
+  const getOrCreateDocChat = useMutation(api.chats.getOrCreateForDocument);
   const createUserMessage = useMutation(api.messages.createUser);
   const createAssistantMessage = useMutation(api.messages.createAssistant);
   
@@ -93,16 +93,13 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
     setIsCreatingChat(true);
     
     try {
-      let chatId = documentChats?.[0]?._id;
-      
-      // Create chat if it doesn't exist
+      // Ensure a chat exists for this document
+      let chatId = documentChat?._id as string | undefined;
       if (!chatId) {
-        chatId = await createChatForDocument({
+        chatId = (await getOrCreateDocChat({
           documentId: documentId as Id<"documents">,
-          diveId: document?.diveId as Id<"dives">,
-          title: document?.title,
           userId: currentUserId as Id<"users">,
-        });
+        })) as string;
       }
       setActiveChatId(chatId as string);
       

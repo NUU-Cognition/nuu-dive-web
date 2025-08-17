@@ -42,6 +42,58 @@ export const listByAnchor = query({
   },
 });
 
+export const getByDocument = query({
+  args: { documentId: v.id("documents") },
+  handler: async (ctx, { documentId }) => {
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_anchor", (q) => q.eq("anchorType", "document").eq("anchorId", documentId))
+      .first();
+    return chat ?? null;
+  },
+});
+
+export const getOrCreateForDocument = mutation({
+  args: {
+    documentId: v.id("documents"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, { documentId, userId }) => {
+    const existing = await ctx.db
+      .query("chats")
+      .withIndex("by_anchor", (q) => q.eq("anchorType", "document").eq("anchorId", documentId))
+      .first();
+    if (existing) return existing._id;
+
+    const doc = await ctx.db.get(documentId);
+    if (!doc) throw new Error("Document not found");
+
+    const now = Date.now();
+    const chatId = await ctx.db.insert("chats", {
+      diveId: doc.diveId,
+      anchorType: "document",
+      anchorId: documentId,
+      title: doc.title,
+      createdAt: now,
+      createdBy: userId,
+      updatedAt: now,
+    });
+
+    // Seed a lightweight note as context
+    await ctx.db.insert("messages", {
+      chatId,
+      parentMessageId: undefined,
+      role: "note",
+      content: `You are chatting about the document: "${doc.title}".`,
+      createdBy: userId,
+      createdAt: now,
+      depth: 0,
+    });
+
+    return chatId;
+  },
+});
+
 export const create = mutation({
   args: {
     diveId: v.id("dives"),
