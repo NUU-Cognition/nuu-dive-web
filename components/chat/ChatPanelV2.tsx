@@ -277,10 +277,27 @@ export default function ChatPanelV2({ chatId, conceptId, onCollapse }: ChatPanel
     },
   });
 
+  // Track if this is the initial load
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [path, streamingMessage]);
+    if (messagesEndRef.current) {
+      if (isInitialLoad && path.length > 0) {
+        // On initial load, scroll immediately without animation
+        messagesEndRef.current.scrollIntoView({ behavior: "instant" });
+        setIsInitialLoad(false);
+      } else if (!isInitialLoad) {
+        // For subsequent updates, use smooth scrolling
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [path, streamingMessage, isInitialLoad]);
+
+  // Reset initial load state when chat changes
+  useEffect(() => {
+    setIsInitialLoad(true);
+  }, [chatId]);
 
   // Reset per-chat guards when switching chats
   useEffect(() => {
