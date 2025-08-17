@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { Handle, Position } from "reactflow";
-import { FileText, Link2, MessageSquare, StickyNote } from "lucide-react";
+import { FileText, Link2, MessageSquare, StickyNote, ChevronDown, ChevronRight } from "lucide-react";
 
 interface ConceptNodeProps {
   data: {
@@ -12,6 +12,10 @@ interface ConceptNodeProps {
     selected: boolean;
     hasNote?: boolean;
     onDoubleClick?: () => void;
+    onToggleCollapse?: () => void;
+    onClick?: () => void;
+    isCollapsed?: boolean;
+    hasChildren?: boolean;
     editMode?: boolean;
   };
 }
@@ -20,28 +24,46 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
   return (
     <>
       {/* Hidden handles for edge connections */}
-      <Handle 
-        type="target" 
-        position={Position.Top} 
+      <Handle
+        type="target"
+        position={Position.Top}
         className="!opacity-0 !pointer-events-none"
       />
-      <Handle 
-        type="target" 
-        position={Position.Left} 
+      <Handle
+        type="target"
+        position={Position.Left}
         className="!opacity-0 !pointer-events-none"
       />
       <div
-        className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all cursor-pointer group ${
-          data.editMode 
-            ? "border-destructive/50 ring-2 ring-destructive/30 hover:border-destructive hover:ring-destructive/50" 
-            : data.selected 
-              ? "border-primary ring-2 ring-primary/20" 
+        className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all cursor-pointer group relative ${data.editMode
+            ? "border-destructive/50 ring-2 ring-destructive/30 hover:border-destructive hover:ring-destructive/50"
+            : data.selected
+              ? "border-primary ring-2 ring-primary/20"
               : "border-border hover:border-primary/50 hover:shadow-md"
-        }`}
+          }`}
         style={{ width: 200 }}
         onDoubleClick={data.onDoubleClick}
+        onClick={data.onClick}
         title={data.editMode ? "Click to delete concept and all related responses" : "Double-click to edit note"}
       >
+        {/* Collapse button - appears on hover when there are children */}
+        {data.hasChildren && (
+          <button
+            className="absolute -right-2 -top-2 bg-background border border-border rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent z-10"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onToggleCollapse?.();
+            }}
+            title={data.isCollapsed ? "Expand responses" : "Collapse responses"}
+          >
+            {data.isCollapsed ? (
+              <ChevronRight className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+          </button>
+        )}
+
         <div className="flex justify-between">
           {/* Left side - Text content */}
           <div className="flex-1 min-w-0">
@@ -52,7 +74,7 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
               {data.snippet}
             </p>
           </div>
-          
+
           {/* Right side - Icons stacked vertically */}
           <div className="flex flex-col items-end gap-2 ml-2">
             {/* Chat/Source type icon aligned with title */}
@@ -65,7 +87,7 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               )}
             </div>
-            
+
             {/* Note indicator below - bigger size */}
             <div title={data.hasNote ? "Has note" : "No note yet"}>
               {data.hasNote ? (
@@ -76,21 +98,21 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
             </div>
           </div>
         </div>
-        
+
         {/* Subtle hint text that appears on hover */}
         <div className="mt-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-70 transition-opacity">
           Double-click to edit note
         </div>
       </div>
       {/* Hidden handles for edge connections */}
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
+      <Handle
+        type="source"
+        position={Position.Bottom}
         className="!opacity-0 !pointer-events-none"
       />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
+      <Handle
+        type="source"
+        position={Position.Right}
         className="!opacity-0 !pointer-events-none"
       />
     </>

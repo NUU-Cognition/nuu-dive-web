@@ -70,7 +70,22 @@
   cursor: pointer;
 }
 
+.react-flow__node {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
 
+.react-flow__edge {
+  transition: opacity 0.3s ease;
+}
 
+.concept-collapsing {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.concept-collapsed {
+  opacity: 0;
+  transform: scale(0.8);
+}
 
 
