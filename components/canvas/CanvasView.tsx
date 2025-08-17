@@ -96,7 +96,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       // Build a temporary graph to check relationships
       const tempEdges: Edge[] = [];
       responseGraphs.forEach((graph) => {
-        graph.edges.forEach((edge: ResponseGraphEdge | any) => {
+        graph.edges.forEach((edge: ResponseGraphEdge) => {
           const sourceId = edge.from.type === "response" 
             ? `response-${edge.from.id}`
             : (edge.from.type === "concept" ? `concept-${edge.from.id}` : `doc-${edge.from.id}`);
