@@ -96,7 +96,7 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       // Build a temporary graph to check relationships
       const tempEdges: Edge[] = [];
       responseGraphs.forEach((graph) => {
-        graph.edges.forEach((edge: ResponseGraphEdge) => {
+        graph.edges.forEach((edge: ResponseGraphEdge | any) => {
           const sourceId = edge.from.type === "response" 
             ? `response-${edge.from.id}`
             : (edge.from.type === "concept" ? `concept-${edge.from.id}` : `doc-${edge.from.id}`);
@@ -277,6 +277,10 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        edgesFocusable={false}
+        edgesUpdatable={false}
         fitView
         attributionPosition="bottom-left"
       >

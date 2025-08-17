@@ -18,15 +18,16 @@ interface ConceptNodeProps {
 const ConceptNode = memo(({ data }: ConceptNodeProps) => {
   return (
     <>
+      {/* Hidden handles for edge connections */}
       <Handle 
         type="target" 
         position={Position.Top} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="target" 
         position={Position.Left} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
       <div
         className={`rounded-xl border-2 bg-background p-4 shadow-sm transition-all cursor-pointer group ${
@@ -38,31 +39,38 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
         onDoubleClick={data.onDoubleClick}
         title="Double-click to edit note"
       >
-        <div className="flex items-start gap-2">
-          <div className="mt-0.5">
-            {data.sourceType === "url" ? (
-              <Link2 className="h-4 w-4 text-muted-foreground" />
-            ) : data.sourceType === "chat" ? (
-              <MessageSquare className="h-4 w-4 text-green-600" />
-            ) : (
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
+        <div className="flex justify-between">
+          {/* Left side - Text content */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm truncate">
+            <h2 className="font-medium text-lg truncate">
               {data.title}
-            </h3>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+            </h2>
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-0">
               {data.snippet}
             </p>
           </div>
-          {/* Visual indicator for note functionality */}
-          <div className="mt-0.5" title={data.hasNote ? "Has note" : "No note yet"}>
-            {data.hasNote ? (
-              <StickyNote className="h-3 w-3 text-blue-500 fill-current" />
-            ) : (
-              <StickyNote className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity" />
-            )}
+          
+          {/* Right side - Icons stacked vertically */}
+          <div className="flex flex-col items-end gap-2 ml-2">
+            {/* Chat/Source type icon aligned with title */}
+            <div className="-mt-0">
+              {data.sourceType === "url" ? (
+                <Link2 className="h-4 w-4 text-muted-foreground" />
+              ) : data.sourceType === "chat" ? (
+                <MessageSquare className="h-4 w-4 text-green-600" />
+              ) : (
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
+            
+            {/* Note indicator below - bigger size */}
+            <div title={data.hasNote ? "Has note" : "No note yet"}>
+              {data.hasNote ? (
+                <StickyNote className="h-4 w-4 text-blue-500 fill-current" />
+              ) : (
+                <StickyNote className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-50 transition-opacity" />
+              )}
+            </div>
           </div>
         </div>
         
@@ -71,15 +79,16 @@ const ConceptNode = memo(({ data }: ConceptNodeProps) => {
           Double-click to edit note
         </div>
       </div>
+      {/* Hidden handles for edge connections */}
       <Handle 
         type="source" 
         position={Position.Bottom} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle 
         type="source" 
         position={Position.Right} 
-        className="!bg-primary"
+        className="!opacity-0 !pointer-events-none"
       />
     </>
   );
