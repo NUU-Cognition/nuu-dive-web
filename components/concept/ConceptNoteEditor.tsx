@@ -311,32 +311,32 @@ export function ConceptNoteEditor({
             ref={textareaRef}
             value={currentNote}
             onChange={(e) => setCurrentNote(e.target.value)}
-            placeholder="Write your markdown note here...
+            placeholder={`Write your markdown note here...
 
-# Getting Started
+Getting Started
 Use the toolbar above to format your text, or type markdown directly:
 
-## Formatting
+Formatting
 - **Bold text** with **asterisks**
 - *Italic text* with *single asterisks*
-- `Inline code` with backticks
+- \`Inline code\` with backticks
 - [Links](https://example.com) with brackets
 
-## Lists & Structure
+Lists & Structure
 - Bullet lists with dashes
 1. Numbered lists with numbers
 - [ ] Task lists with checkboxes
 - [x] Completed tasks
 
-## Advanced Features
+Advanced Features
 > Blockquotes with greater than symbol
 
-```javascript
+\`\`\`javascript
 // Code blocks with syntax highlighting
 function hello() {
   console.log('Hello, world!');
 }
-```
+\`\`\`
 
 | Tables | Are | Supported |
 |--------|-----|-----------|
@@ -344,7 +344,7 @@ function hello() {
 
 ---
 
-Try editing and switching to Preview mode to see the rendered result!"
+Try editing and switching to Preview mode to see the rendered result!`}
             className="h-full w-full resize-none border-0 focus:ring-0 rounded-none p-4 font-mono text-sm leading-relaxed"
             disabled={isSaving}
           />
