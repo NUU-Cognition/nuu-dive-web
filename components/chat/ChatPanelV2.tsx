@@ -46,7 +46,7 @@ function generateFirstPrompt(text: string): string {
   return `Tell me about: ${text.trim()}`;
 }
 
-export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: ChatPanelProps) {
+export default function ChatPanelV2({ chatId, conceptId, onCollapse }: ChatPanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
   const [inclusionOverride, setInclusionOverride] = useState<{ includeIds?: string[]; excludeIds?: string[] } | undefined>(undefined);
@@ -141,6 +141,57 @@ export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: 
   }, [leafId, currentByIdMap, inheritedMessages, currentMessages]);
 
   const pathLeaf = path[path.length - 1];
+
+  // Filter messages based on inclusion override for display
+  const filteredPath = useMemo(() => {
+    if (!inclusionOverride) {
+      return path; // No override, show all messages
+    }
+
+    if (inclusionOverride.includeIds) {
+      // Only show messages that are explicitly included
+      return path.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      // Show all messages except those explicitly excluded
+      return path.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return path; // Fallback to showing all
+  }, [path, inclusionOverride]);
+
+  const filteredInheritedMessages = useMemo(() => {
+    if (!inclusionOverride) {
+      return inheritedMessages;
+    }
+
+    if (inclusionOverride.includeIds) {
+      return inheritedMessages.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      return inheritedMessages.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return inheritedMessages;
+  }, [inheritedMessages, inclusionOverride]);
+
+  const filteredCurrentMessages = useMemo(() => {
+    if (!inclusionOverride) {
+      return currentMessages;
+    }
+
+    if (inclusionOverride.includeIds) {
+      return currentMessages.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      return currentMessages.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return currentMessages;
+  }, [currentMessages, inclusionOverride]);
   
   // For determining parent of new messages, only consider current messages (not inherited)
   const currentPathLeaf = currentMessages.length > 0 ? 
@@ -471,14 +522,14 @@ export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: 
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Chat</h2>
-          {inheritedMessages.length > 0 && (
+          {filteredInheritedMessages.length > 0 && (
             <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-              +{inheritedMessages.length} inherited
+              +{filteredInheritedMessages.length} inherited
             </span>
           )}
-          {path.length > 0 && (
+          {filteredPath.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              {path.filter(m => m.role !== "note").length} total messages
+              {filteredPath.filter(m => m.role !== "note").length} total messages
             </span>
           )}
         </div>
@@ -506,13 +557,13 @@ export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: 
       <div className="flex-1 overflow-y-auto p-4" onMouseUp={handleTextSelection}>
         <div className="space-y-4">
           {/* Inherited Context Section */}
-          {inheritedMessages.length > 0 && (
+          {filteredInheritedMessages.length > 0 && (
             <div className="border-l-2 border-blue-200 pl-4 bg-blue-50/30 rounded-r-lg">
               <div className="mb-3 text-xs text-blue-600 font-medium flex items-center gap-1">
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                Inherited Context ({inheritedMessages.length} messages)
+                Inherited Context ({filteredInheritedMessages.length} messages)
               </div>
-              {inheritedMessages.map((node: typeof inheritedMessages[0], index: number) => (
+              {filteredInheritedMessages.map((node: typeof filteredInheritedMessages[0], index: number) => (
                 <div key={`inherited-${node.inheritedFromChatId || node.chatId}-${node._id}-${index}`} className="opacity-75">
                   <MessageItem
                     message={node}
@@ -531,7 +582,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: 
           )}
           
           {/* Current Messages */}
-          {currentMessages.length > 0 && path.filter((m) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited).map((node) => (
+          {filteredCurrentMessages.length > 0 && filteredPath.filter((m) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited).map((node) => (
             <MessageItem
               key={`current-${chatId}-${node._id}`}
               message={node}
@@ -579,7 +630,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: 
             disabled={messagesLoading}
           >
             <Info className="mr-1 h-3 w-3" />
-            Context ({messagesLoading ? "…" : path.filter(m => m.role !== "note").length})
+            Context ({messagesLoading ? "…" : `${filteredPath.length}/${path.length}`})
           </Button>
           <Button
             variant="ghost"
@@ -633,6 +684,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose, onCollapse }: 
         onClose={() => setContextInspectorOpen(false)}
         messages={path}
         onSave={(o: { includeIds?: string[]; excludeIds?: string[] }) => setInclusionOverride(o)}
+        currentOverride={inclusionOverride}
       />
 
       {/* Branch Dialog */}
