@@ -141,44 +141,46 @@ export default function PdfViewer({
         className="flex-1 overflow-auto flex justify-center bg-muted/10"
         onMouseUp={handleTextSelection}
       >
-        <Document
-          file={fileUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-pulse">Loading PDF...</div>
-            </div>
-          }
-          error={
-            <div className="flex items-center justify-center h-full">
-              <div className="text-sm text-muted-foreground">Failed to load PDF</div>
-            </div>
-          }
-        >
-          <Page 
-            pageNumber={pageNumber} 
-            scale={scale}
-            onLoadSuccess={onPageLoadSuccess}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-          />
-          
-          {/* Render existing highlights as overlays */}
-          {currentPageDimensions && existingHighlights
-            .filter(h => h.pageIndex === pageNumber - 1)
-            .map((highlight, idx) => (
-              <div
-                key={idx}
-                className="absolute pointer-events-none bg-amber-300/25"
-                style={{
-                  left: `${highlight.rect.x * currentPageDimensions.width * scale}px`,
-                  top: `${highlight.rect.y * currentPageDimensions.height * scale}px`,
-                  width: `${highlight.rect.w * currentPageDimensions.width * scale}px`,
-                  height: `${highlight.rect.h * currentPageDimensions.height * scale}px`,
-                }}
-              />
-            ))}
-        </Document>
+        <div className="relative">
+          <Document
+            file={fileUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            loading={
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-pulse">Loading PDF...</div>
+              </div>
+            }
+            error={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-sm text-muted-foreground">Failed to load PDF</div>
+              </div>
+            }
+          >
+            <Page 
+              pageNumber={pageNumber} 
+              scale={scale}
+              onLoadSuccess={onPageLoadSuccess}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+            />
+            
+            {/* Render existing highlights as overlays */}
+            {currentPageDimensions && existingHighlights
+              .filter(h => h.pageIndex === pageNumber - 1)
+              .map((highlight, idx) => (
+                <div
+                  key={idx}
+                  className="absolute pointer-events-none bg-amber-300/25"
+                  style={{
+                    left: `${highlight.rect.x * currentPageDimensions.width * scale}px`,
+                    top: `${highlight.rect.y * currentPageDimensions.height * scale}px`,
+                    width: `${highlight.rect.w * currentPageDimensions.width * scale}px`,
+                    height: `${highlight.rect.h * currentPageDimensions.height * scale}px`,
+                  }}
+                />
+              ))}
+          </Document>
+        </div>
       </div>
 
       {/* Create Concept dialog */}

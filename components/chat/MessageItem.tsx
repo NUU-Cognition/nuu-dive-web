@@ -78,7 +78,7 @@ export default function MessageItem({
       </div>
 
       {/* Content */}
-      <div className="flex-1 space-y-1">
+      <div className="flex-1 space-y-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">
             {isUser ? "You" : isAssistant ? "Assistant" : "Note"}
@@ -93,15 +93,82 @@ export default function MessageItem({
           </span>
         </div>
 
-        <div className="prose prose-sm dark:prose-invert max-w-none">
-          {isNote || isAssistant ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {/* Markdown Content with proper styling */}
+        {isNote || isAssistant ? (
+          <div className="prose prose-sm dark:prose-invert max-w-none 
+                          prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
+                          prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
+                          prose-p:my-2 prose-p:leading-relaxed
+                          prose-ul:my-2 prose-ul:list-disc prose-ul:pl-6
+                          prose-ol:my-2 prose-ol:list-decimal prose-ol:pl-6
+                          prose-li:my-1
+                          prose-blockquote:border-l-4 prose-blockquote:border-primary/30 
+                          prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:my-2
+                          prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 
+                          prose-code:rounded prose-code:text-sm prose-code:before:content-[''] 
+                          prose-code:after:content-['']
+                          prose-pre:bg-muted prose-pre:p-3 prose-pre:rounded-lg 
+                          prose-pre:overflow-x-auto prose-pre:my-2
+                          prose-strong:font-semibold
+                          prose-em:italic
+                          prose-a:text-primary prose-a:underline prose-a:underline-offset-2">
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({children}) => <h1 className="text-2xl font-bold mt-4 mb-2">{children}</h1>,
+                h2: ({children}) => <h2 className="text-xl font-bold mt-3 mb-2">{children}</h2>,
+                h3: ({children}) => <h3 className="text-lg font-bold mt-2 mb-1">{children}</h3>,
+                h4: ({children}) => <h4 className="text-base font-bold mt-2 mb-1">{children}</h4>,
+                h5: ({children}) => <h5 className="text-sm font-bold mt-2 mb-1">{children}</h5>,
+                h6: ({children}) => <h6 className="text-sm font-bold mt-2 mb-1">{children}</h6>,
+                ul: ({children}) => <ul className="list-disc pl-6 my-2 space-y-1">{children}</ul>,
+                ol: ({children}) => <ol className="list-decimal pl-6 my-2 space-y-1">{children}</ol>,
+                li: ({children}) => <li className="ml-2">{children}</li>,
+                pre: ({children}) => (
+                  <pre className="bg-muted p-3 rounded-lg overflow-x-auto my-2 text-sm">
+                    {children}
+                  </pre>
+                ),
+                code: ({children, className}) => {
+                  const isInline = !className;
+                  return isInline ? (
+                    <code className="bg-muted px-1 py-0.5 rounded text-sm">
+                      {children}
+                    </code>
+                  ) : (
+                    <code className="text-sm">{children}</code>
+                  );
+                },
+                blockquote: ({children}) => (
+                  <blockquote className="border-l-4 border-primary/30 pl-4 italic my-2 text-muted-foreground">
+                    {children}
+                  </blockquote>
+                ),
+                table: ({children}) => (
+                  <div className="overflow-x-auto my-2">
+                    <table className="border-collapse border border-border">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                th: ({children}) => (
+                  <th className="border border-border px-3 py-1 bg-muted text-left font-semibold">
+                    {children}
+                  </th>
+                ),
+                td: ({children}) => (
+                  <td className="border border-border px-3 py-1">
+                    {children}
+                  </td>
+                ),
+              }}
+            >
               {message.content}
             </ReactMarkdown>
-          ) : (
-            <p className="whitespace-pre-wrap">{message.content}</p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
