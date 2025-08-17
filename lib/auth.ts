@@ -5,16 +5,16 @@ import GoogleProvider from "next-auth/providers/google";
 
 const providers = [
   // Only add OAuth providers if credentials are configured
-  ...(process.env.GITHUB_ID && process.env.GITHUB_SECRET
+  ...(process.env["GITHUB_ID"] && process.env["GITHUB_SECRET"]
     ? [GithubProvider({ 
-        clientId: process.env.GITHUB_ID!, 
-        clientSecret: process.env.GITHUB_SECRET! 
+        clientId: process.env["GITHUB_ID"]!, 
+        clientSecret: process.env["GITHUB_SECRET"]! 
       })]
     : []),
-  ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+  ...(process.env["GOOGLE_CLIENT_ID"] && process.env["GOOGLE_CLIENT_SECRET"]
     ? [GoogleProvider({ 
-        clientId: process.env.GOOGLE_CLIENT_ID!, 
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET! 
+        clientId: process.env["GOOGLE_CLIENT_ID"]!, 
+        clientSecret: process.env["GOOGLE_CLIENT_SECRET"]! 
       })]
     : []),
   // Always include credentials provider for demo
@@ -46,14 +46,14 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = (user as any).id;
+        token["id"] = (user as { id: string }).id;
         token.email = user.email;
       }
       return token;
     },
     async session({ session, token }) {
       if (session?.user) {
-        (session.user as any).id = token.id as string;
+        (session.user as { id: string }).id = token["id"] as string;
         session.user.email = token.email as string;
       }
       return session;
@@ -63,5 +63,5 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
     error: "/auth/error",
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env["NEXTAUTH_SECRET"],
 };

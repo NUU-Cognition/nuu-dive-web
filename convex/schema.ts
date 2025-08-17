@@ -53,7 +53,7 @@ export default defineSchema({
     sourceUrl: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
     sourceMessageId: v.optional(v.id("messages")), // when concept is highlighted from a prior response
-    sourceChatId: v.optional(v.id("chats")), // Add missing field
+    sourceChatId: v.optional(v.id("chats")), // the chat where this concept was created from
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
       fileName: v.string(),

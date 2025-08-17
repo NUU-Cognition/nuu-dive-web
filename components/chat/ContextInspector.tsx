@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Info, FileText, Link2, MessageSquare } from "lucide-react";
+import { FileText, Info, Link2, MessageSquare } from "lucide-react";
 
 interface Message {
   _id: string;
@@ -30,6 +30,7 @@ interface ContextInspectorProps {
   extractedContent?: string;
   documentTitle?: string;
   extractionLevel?: string;
+  currentOverride?: { includeIds?: string[]; excludeIds?: string[] };
 }
 
 export default function ContextInspector({
@@ -40,16 +41,35 @@ export default function ContextInspector({
   extractedContent,
   documentTitle,
   extractionLevel,
+  currentOverride,
 }: ContextInspectorProps) {
 
-  const [includedMessageIds, setIncludedMessageIds] = useState<Set<string>>(
-    new Set(messages.map((m) => m._id))
-  );
+  // Initialize included message IDs based on current override or default to all
+  const [includedMessageIds, setIncludedMessageIds] = useState<Set<string>>(() => {
+    if (currentOverride?.includeIds) {
+      return new Set(currentOverride.includeIds);
+    }
+    if (currentOverride?.excludeIds) {
+      const allIds = new Set(messages.map((m) => m._id));
+      currentOverride.excludeIds.forEach(id => allIds.delete(id));
+      return allIds;
+    }
+    return new Set(messages.map((m) => m._id));
+  });
 
-  // Keep checkboxes in sync when messages change or dialog opens
+  // Update included message IDs when messages change or override changes
   useEffect(() => {
-    setIncludedMessageIds(new Set(messages.map((m) => m._id)));
-  }, [messages, open]);
+    if (currentOverride?.includeIds) {
+      setIncludedMessageIds(new Set(currentOverride.includeIds));
+    } else if (currentOverride?.excludeIds) {
+      const allIds = new Set(messages.map((m) => m._id));
+      currentOverride.excludeIds.forEach(id => allIds.delete(id));
+      setIncludedMessageIds(allIds);
+    } else {
+      // No override, include all messages
+      setIncludedMessageIds(new Set(messages.map((m) => m._id)));
+    }
+  }, [messages, currentOverride]);
 
   const toggleMessageInclusion = (messageId: string) => {
     const newSet = new Set(includedMessageIds);
@@ -70,11 +90,11 @@ export default function ContextInspector({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="max-w-2xl max-h-[100vh]">
         <DialogHeader>
           <DialogTitle>Context Inspector</DialogTitle>
           <DialogDescription>
-            Control which messages and sources are included in the AI's context for the next response.
+            Control which messages and sources are included in the AI&apos;s context for the next response.
           </DialogDescription>
         </DialogHeader>
 

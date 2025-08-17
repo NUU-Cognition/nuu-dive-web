@@ -1,12 +1,15 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Button } from "@/components/ui/button";
 import { X, FileText, Link2, ExternalLink } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useStreamChat } from "@/hooks/useStreamChat";
 
 const PdfViewer = dynamic(() => import("./PdfViewer"), { ssr: false });
 
@@ -18,22 +21,136 @@ interface DocumentPanelProps {
 }
 
 export default function DocumentPanel({ documentId, onClose, layout = "dock" }: DocumentPanelProps) {
+  const { currentUserId, setSelectedChat, setLeafForChat, setPendingForChat } = useWorkspace();
+  const [question, setQuestion] = useState("");
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState("");
+  const [pendingParentId, setPendingParentId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const activeChatIdRef = useRef<string | null>(null);
+  useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
   
   // Get document details
   const document = useQuery(
     api.documents.get,
     { documentId: documentId as Id<"documents"> }
   );
+  const documentLoading = document === undefined;
+  
+  // Get existing chats for this document
+  const documentChats = useQuery(
+    api.chats.listByAnchor,
+    { anchorType: "document" as const, anchorId: documentId as Id<"documents"> }
+  );
+  
+  // Mutations
+  const createChatForDocument = useMutation(api.chats.createForDocument);
+  const createUserMessage = useMutation(api.messages.createUser);
+  const createAssistantMessage = useMutation(api.messages.createAssistant);
+  
+  // Streaming hook
+  const { sendMessage, isStreaming } = useStreamChat({
+    onStart: ({ messageId }) => {
+      const cid = activeChatIdRef.current;
+      if (cid) setPendingForChat(cid, { id: messageId, parentMessageId: pendingParentId ?? undefined });
+    },
+    onToken: (token) => {
+      setStreamingMessage((prev) => prev + token);
+    },
+    onComplete: async (fullText) => {
+      const cid = activeChatIdRef.current;
+      if (cid) setPendingForChat(cid, null);
+      // Persist assistant reply under the user message we just created
+      if (activeChatId && pendingParentId && currentUserId) {
+        const assistantId = await createAssistantMessage({
+          chatId: activeChatId as Id<"chats">,
+          parentMessageId: pendingParentId as Id<"messages">,
+          content: fullText,
+          tokenCount: fullText.trim().split(/\s+/).length,
+          userId: currentUserId as Id<"users">,
+        });
+        // Set the leaf to the new assistant message
+        setLeafForChat(activeChatId, assistantId as string);
+        setSelectedChat(activeChatId);
+      }
+      setStreamingMessage("");
+      setQuestion("");
+      setIsCreatingChat(false);
+      setPendingParentId(null);
+    },
+    onError: (error) => {
+      console.error("Stream error:", error);
+      const cid = activeChatIdRef.current;
+      if (cid) setPendingForChat(cid, null);
+      setStreamingMessage("");
+      setIsCreatingChat(false);
+    },
+  });
+  
+  const handleAsk = async () => {
+    if (!question.trim() || !currentUserId || isStreaming) return;
+    
+    setIsCreatingChat(true);
+    
+    try {
+      let chatId = documentChats?.[0]?._id;
+      
+      // Create chat if it doesn't exist
+      if (!chatId) {
+        chatId = await createChatForDocument({
+          documentId: documentId as Id<"documents">,
+          diveId: document?.diveId as Id<"dives">,
+          title: document?.title,
+          userId: currentUserId as Id<"users">,
+        });
+      }
+      setActiveChatId(chatId as string);
+      
+      // Create user message
+      const userMessageId = await createUserMessage({
+        chatId: chatId as Id<"chats">,
+        content: question,
+        userId: currentUserId as Id<"users">,
+      });
+      setPendingParentId(userMessageId as string);
+      
+      // Stream response
+      await sendMessage({
+        chatId: chatId as string,
+        parentMessageId: userMessageId as string,
+        userText: question,
+        messages: [], // Note will exist server-side; we still attach for citations
+        inclusionOverride: undefined,
+        attachments: document?.url
+          ? [{ type: "url", url: document.url, title: document.title }]
+          : [],
+      });
+    } catch (error) {
+      console.error("Failed to ask document:", error);
+      setIsCreatingChat(false);
+    }
+  };
   
   const outerClass =
     layout === "main"
       ? "flex-1 min-w-0 border-r bg-background h-full flex flex-col"
       : "w-[400px] border-l bg-background h-full flex flex-col";
 
-  if (!document) {
+  if (documentLoading) {
     return (
       <div className={outerClass + " flex items-center justify-center"}>
-        <div className="animate-pulse">Loading document...</div>
+        <div className="text-sm text-muted-foreground">
+          Loading document…
+        </div>
+      </div>
+    );
+  }
+  if (document === null) {
+    return (
+      <div className={outerClass + " flex items-center justify-center"}>
+        <div className="text-center">
+          <p className="text-muted-foreground">Document not found</p>
+        </div>
       </div>
     );
   }
@@ -74,8 +191,8 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
           </div>
         )}
         <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-          <span>{document.responseCount || 0} responses</span>
-          <span>{document.conceptCount || 0} concepts</span>
+          <span>{(document as { responseCount?: number }).responseCount || 0} responses</span>
+          <span>{(document as { conceptCount?: number }).conceptCount || 0} concepts</span>
         </div>
       </div>
       

@@ -7,7 +7,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { GitBranch, Plus, ChevronLeft, Settings, PanelLeftClose, PanelLeft, Link2, FileText } from "lucide-react";
+import { GitBranch, ChevronLeft, Settings, PanelLeftClose, PanelLeft, Link2, FileText } from "lucide-react";
 import Link from "next/link";
 import {
   Dialog,
@@ -26,11 +26,12 @@ import DocumentPanel from "@/components/document/DocumentPanel";
 import CanvasView from "@/components/canvas/CanvasView";
 import RightDock from "@/components/layout/RightDock";
 import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
+import { ConceptNoteEditor } from "@/components/concept/ConceptNoteEditor";
 
 function DiveWorkspaceContent() {
   const params = useParams();
-  const diveId = params.diveId as string;
-  const { data: session, status } = useSession();
+  const diveId = params["diveId"] as string;
+  const { status } = useSession();
   const router = useRouter();
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
@@ -39,7 +40,18 @@ function DiveWorkspaceContent() {
   const [newDocumentTitle, setNewDocumentTitle] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
-  const { selectedConceptId, selectedChatId, selectedDocumentId, setSelectedChat, setSelectedDocument, addDocument } = useWorkspace();
+  const { 
+    selectedConceptId, 
+    selectedChatId, 
+    selectedDocumentId, 
+    editingConceptNoteId,
+    concepts,
+    setSelectedChat, 
+    setSelectedDocument, 
+    setEditingConceptNoteId,
+    addDocument,
+    updateConcept
+  } = useWorkspace();
   
   // Check for extension parameters
   const [extensionParams, setExtensionParams] = useState<{
@@ -61,6 +73,7 @@ function DiveWorkspaceContent() {
       ? { diveId: diveId as Id<"dives"> } 
       : "skip"
   );
+  const diveLoading = dive === undefined;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -90,13 +103,13 @@ function DiveWorkspaceContent() {
   if (status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse">Loading workspace...</div>
+        <div className="text-center text-sm text-muted-foreground">Loading workspace…</div>
       </div>
     );
   }
 
-  // Handle case where dive doesn't exist or is a mock ID
-  if (!dive && diveId !== "1" && diveId !== "2") {
+  // Handle case where dive doesn't exist
+  if (dive === null) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
@@ -211,7 +224,7 @@ function DiveWorkspaceContent() {
             </Button>
             <div className="flex items-center gap-2">
               <GitBranch className="h-5 w-5" />
-              <h1 className="text-lg font-semibold">{displayDive.title}</h1>
+              <h1 className="text-lg font-semibold">{diveLoading ? "…" : displayDive.title}</h1>
               {extensionParams.fromExtension && (
                 <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                   From Extension
@@ -369,7 +382,16 @@ function DiveWorkspaceContent() {
                 </div>
               </div>
             )}
-            {selectedDocumentId ? (
+            {editingConceptNoteId ? (
+              <ConceptNoteEditor
+                conceptTitle={concepts.find(c => c._id === editingConceptNoteId)?.title || "Unknown Concept"}
+                note={concepts.find(c => c._id === editingConceptNoteId)?.note || ""}
+                onSave={async (note) => {
+                  await updateConcept(editingConceptNoteId, { note });
+                }}
+                onClose={() => setEditingConceptNoteId(null)}
+              />
+            ) : selectedDocumentId ? (
               <DocumentPanel
                 layout="main"
                 documentId={selectedDocumentId}
@@ -382,11 +404,12 @@ function DiveWorkspaceContent() {
 
           {/* Right dock = Chat (resizable & collapsible) */}
           <RightDock storageKey="dock.chat" label="Chat">
-            {selectedChatId ? (
+            {({ onCollapse }) => selectedChatId ? (
               <ChatPanelV2
                 chatId={selectedChatId}
                 conceptId={selectedConceptId ?? null}
                 onClose={() => setSelectedChat(null)}
+                onCollapse={onCollapse}
               />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">
@@ -401,7 +424,7 @@ function DiveWorkspaceContent() {
 
 export default function DiveWorkspacePage() {
   const params = useParams();
-  const diveId = params.diveId as string;
+  const diveId = params["diveId"] as string;
   return (
     <WorkspaceProvider diveId={diveId}>
       <DiveWorkspaceContent />

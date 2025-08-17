@@ -8,7 +8,7 @@ import { ArrowRight, Sparkles, GitBranch, FileText } from "lucide-react";
 import Link from "next/link";
 
 export default function HomePage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function HomePage() {
   if (status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
+        <div className="text-sm text-muted-foreground">Loading…</div>
       </div>
     );
   }

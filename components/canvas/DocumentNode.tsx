@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Handle, Position, NodeProps } from "reactflow";
+import { Handle, Position, type NodeProps } from "reactflow";
 import { FileText, Link2, MessageCircle, Hash } from "lucide-react";
 
 function hostname(url?: string) {
@@ -21,22 +21,34 @@ interface DocumentNodeData {
   conceptCount: number;
   selected?: boolean;
   onOpen?: () => void;
+  editMode?: boolean;
 }
 
 function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
   return (
     <div
       className={`
-        rounded-lg border bg-background p-4 shadow-sm transition-all
-        ${selected ? "ring-2 ring-primary/40 shadow-md" : "hover:shadow-md"}
+        rounded-lg border bg-background p-4 shadow-sm transition-all cursor-pointer
+        ${data.editMode 
+          ? "border-destructive/50 ring-2 ring-destructive/30 hover:border-destructive hover:ring-destructive/50" 
+          : selected 
+            ? "ring-2 ring-primary/40 shadow-md" 
+            : "hover:shadow-md"
+        }
         min-w-[280px] max-w-[320px]
       `}
+      title={data.editMode ? "Click to delete document and all related concepts/responses" : undefined}
     >
-      {/* Input handle (top) */}
+      {/* Hidden handles for edge connections */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-primary !w-2 !h-2"
+        className="!opacity-0 !pointer-events-none"
+      />
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        className="!opacity-0 !pointer-events-none"
       />
 
       {/* Header */}
@@ -85,11 +97,16 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
         </button>
       </div>
 
-      {/* Output handle (bottom) */}
+      {/* Hidden handles for edge connections */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-primary !w-2 !h-2"
+        className="!opacity-0 !pointer-events-none"
+      />
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className="!opacity-0 !pointer-events-none"
       />
     </div>
   );

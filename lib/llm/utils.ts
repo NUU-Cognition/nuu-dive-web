@@ -13,6 +13,6 @@ export function parseEventSource(line: string) {
   return null;
 }
 
-export function encodeSSE(data: any): string {
+export function encodeSSE(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }

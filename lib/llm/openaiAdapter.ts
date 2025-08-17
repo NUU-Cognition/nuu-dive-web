@@ -1,4 +1,4 @@
-import { LLMAdapter, LLMStream, LLMMessage } from "./provider";
+import type { LLMAdapter, LLMMessage } from "./provider";
 
 export const openaiAdapter: LLMAdapter = {
   async *stream({
@@ -8,7 +8,7 @@ export const openaiAdapter: LLMAdapter = {
     temperature = 0.7,
     maxTokens = 4096
   }) {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env["OPENAI_API_KEY"];
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY not configured");
     }
@@ -29,7 +29,7 @@ export const openaiAdapter: LLMAdapter = {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model: process.env["OPENAI_MODEL"] || "gpt-4o-mini",
         messages,
         temperature,
         max_tokens: maxTokens,

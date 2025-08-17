@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Send, GitBranch, Paperclip, Info, Plus, FileText } from "lucide-react";
+import { X, Send, GitBranch, Paperclip, Info, Plus, FileText, ChevronRight } from "lucide-react";
 import MessageItem from "./MessageItem";
 import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
@@ -12,7 +12,6 @@ import { useConvexChat } from "@/hooks/useConvexChat";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
@@ -21,24 +20,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { type Id } from "@/convex/_generated/dataModel";
+import CreateConceptDialog from "@/components/concept/CreateConceptDialog";
+import { ConceptCreationTooltip } from "./ConceptCreationTooltip";
 
 interface ChatPanelProps {
   chatId: string;
   conceptId: string | null;
   onClose: () => void;
+  onCollapse?: () => void;
 }
 
-interface Message {
-  _id: string;
-  role: "system" | "user" | "assistant" | "note";
-  content: string;
-  parentMessageId?: string;
-  depth: number;
-  createdAt: number;
+// Message interface is imported from useConvexChat hook
+
+// Helper function to generate title from selected text (first few words)
+function generateTitleFromText(text: string): string {
+  const words = text.trim().split(/\s+/);
+  const maxWords = 5;
+  const title = words.slice(0, maxWords).join(" ");
+  return title.length > 50 ? title.substring(0, 47) + "..." : title;
 }
 
-export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelProps) {
+// Helper function to generate first prompt template
+function generateFirstPrompt(text: string): string {
+  return `Tell me about: ${text.trim()}`;
+}
+
+export default function ChatPanelV2({ chatId, conceptId, onCollapse }: ChatPanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
   const [inclusionOverride, setInclusionOverride] = useState<{ includeIds?: string[]; excludeIds?: string[] } | undefined>(undefined);
@@ -46,15 +54,18 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
   const [branchInput, setBranchInput] = useState("");
   const [branchFromId, setBranchFromId] = useState<string | null>(null);
-  const [extractConceptDialog, setExtractConceptDialog] = useState(false);
-  const [conceptTitle, setConceptTitle] = useState("");
-  const [conceptSnippet, setConceptSnippet] = useState("");
-  const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<any>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
+  const [selectedText, setSelectedText] = useState("");
+  const [createConceptOpen, setCreateConceptOpen] = useState(false);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [selectedMessageForConcept, setSelectedMessageForConcept] = useState<{ _id: string; content: string; role: string } | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Workspace context for user & dive metadata + leaf cursor
-  const { currentUserId, diveId, setSelectedChat, getLeafForChat, setLeafForChat } = useWorkspace();
+  const { currentUserId, diveId, setSelectedChat, getLeafForChat, setLeafForChat, setPendingForChat } = useWorkspace();
   const ready = Boolean(currentUserId);
   
   // Persist overrides per anchor (the current leaf message)
@@ -62,11 +73,11 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
   // Messages for this chat
   const {
-    messages = [],
+    messages: rawMessages,
     createUserMessage,
     createAssistantMessage,
     createBranch,
-    createConcept,
+    deleteMessage,
   } = useConvexChat({
     chatId,
     conceptId,
@@ -85,26 +96,32 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     api.documents.get,
     concept?.documentId ? { documentId: concept.documentId } : "skip"
   );
+  const messages = useMemo(() => rawMessages ?? [], [rawMessages]);
+  const messagesLoading = rawMessages === undefined;
 
   // Build indices for efficient lookups
-  const byId = useMemo(() => new Map(messages.map((m) => [m._id, m])), [messages]);
+  const byId = useMemo(() => new Map<string, typeof messages[0]>(messages.map((m: typeof messages[0]) => [m._id, m])), [messages]);
   
+  // Separate inherited and current messages
+  const { inheritedMessages, currentMessages } = useMemo(() => {
+    const inherited = messages.filter((m: typeof messages[0]) => (m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
+    const current = messages.filter((m: typeof messages[0]) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited) || [];
+    return { inheritedMessages: inherited, currentMessages: current };
+  }, [messages]);
 
-  // Compute default leaf - prefer latest assistant, then latest user, then latest message
+  // Compute default leaf - prefer latest current assistant, then current user, then fallback
   const defaultLeaf = useMemo(() => {
-    // First try to find the latest assistant message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
+    const src = currentMessages.length > 0 ? currentMessages : messages;
+    for (let i = src.length - 1; i >= 0; i--) {
+      const m = src[i];
       if (m.role === "assistant") return m._id;
     }
-    // Then try latest user message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
+    for (let i = src.length - 1; i >= 0; i--) {
+      const m = src[i];
       if (m.role === "user") return m._id;
     }
-    // Finally, just use the latest message
-    return messages[messages.length - 1]?._id;
-  }, [messages]);
+    return src[src.length - 1]?._id;
+  }, [messages, currentMessages]);
 
   const leafId = getLeafForChat(chatId) ?? defaultLeaf;
 
@@ -115,32 +132,91 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     }
   }, [chatId, defaultLeaf, getLeafForChat, setLeafForChat]);
 
-  // Path to the current leaf
+  // Path to the current leaf (only from current messages)
+  const currentByIdMap = useMemo(() => new Map<string, typeof currentMessages[0]>(currentMessages.map((m: typeof currentMessages[0]) => [m._id, m])), [currentMessages]);
+  
   const path = useMemo(() => {
-    if (!leafId) return [];
+    if (!leafId) return [...inheritedMessages, ...currentMessages];
     const p: typeof messages = [];
-    let cur = byId.get(leafId);
-    const guard = new Set<string>();
+    let cur = currentByIdMap.get(leafId as Id<"messages">);
+    const guard = new Set<Id<"messages">>();
     while (cur && !guard.has(cur._id)) {
       p.unshift(cur);
       guard.add(cur._id);
-      cur = cur.parentMessageId ? byId.get(cur.parentMessageId) : undefined;
+      cur = cur.parentMessageId ? currentByIdMap.get(cur.parentMessageId) : undefined;
     }
-    return p;
-  }, [leafId, byId]);
+    // Always include inherited messages at the beginning
+    return [...inheritedMessages, ...p];
+  }, [leafId, currentByIdMap, inheritedMessages, currentMessages]);
 
   const pathLeaf = path[path.length - 1];
+
+  // Filter messages based on inclusion override for display
+  const filteredPath = useMemo(() => {
+    if (!inclusionOverride) {
+      return path; // No override, show all messages
+    }
+
+    if (inclusionOverride.includeIds) {
+      // Only show messages that are explicitly included
+      return path.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      // Show all messages except those explicitly excluded
+      return path.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return path; // Fallback to showing all
+  }, [path, inclusionOverride]);
+
+  const filteredInheritedMessages = useMemo(() => {
+    if (!inclusionOverride) {
+      return inheritedMessages;
+    }
+
+    if (inclusionOverride.includeIds) {
+      return inheritedMessages.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      return inheritedMessages.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return inheritedMessages;
+  }, [inheritedMessages, inclusionOverride]);
+
+  const filteredCurrentMessages = useMemo(() => {
+    if (!inclusionOverride) {
+      return currentMessages;
+    }
+
+    if (inclusionOverride.includeIds) {
+      return currentMessages.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      return currentMessages.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return currentMessages;
+  }, [currentMessages, inclusionOverride]);
+  
+  // For determining parent of new messages, only consider current messages (not inherited)
+  const currentPathLeaf = currentMessages.length > 0 ? 
+    currentMessages.find((m: typeof currentMessages[0]) => m._id === leafId) || currentMessages[currentMessages.length - 1] :
+    undefined;
   
   // Check if the path leaf is a user message that needs a response
   const needsResponse = useMemo(() => {
     if (!pathLeaf) return false;
     if (pathLeaf.role !== "user") return false;
-    // Check if there's already an assistant response to this user message
-    const hasResponse = messages.some(
-      m => m.role === "assistant" && m.parentMessageId === pathLeaf._id
+    // Check if there's already an assistant response to this user message (in current branch only)
+    const hasResponse = currentMessages.some(
+      (m: typeof messages[0]) => m.role === "assistant" && m.parentMessageId === pathLeaf._id
     );
     return !hasResponse;
-  }, [pathLeaf, messages]);
+  }, [pathLeaf, currentMessages]);
 
   // Track the parent message id for the assistant's reply to avoid races
   const [pendingParentId, setPendingParentId] = useState<string | null>(null);
@@ -151,10 +227,16 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
   // Streaming hook for LLM responses
   const { sendMessage, isStreaming } = useStreamChat({
+    onStart: ({ messageId }) => {
+      // Create ephemeral loading dot for this chat immediately
+      setPendingForChat(chatId, { id: messageId, parentMessageId: pendingParentIdRef.current ?? undefined });
+    },
     onToken: (token) => {
       setStreamingMessage((prev) => prev + token);
     },
     onComplete: async (fullText) => {
+      // Remove loading dot; persisted message will appear next render
+      setPendingForChat(chatId, null);
       console.log("Stream complete, saving assistant message");
       console.log("Full text length:", fullText?.length);
       console.log("Pending parent ID (state):", pendingParentId);
@@ -194,6 +276,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     },
     onError: (error) => {
       console.error("Stream error:", error);
+      setPendingForChat(chatId, null);
       setStreamError(error);
       setStreamingMessage("");
       setPendingParentId(null);
@@ -203,10 +286,27 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     },
   });
 
+  // Track if this is the initial load
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [path, streamingMessage]);
+    if (messagesEndRef.current) {
+      if (isInitialLoad && path.length > 0) {
+        // On initial load, scroll immediately without animation
+        messagesEndRef.current.scrollIntoView({ behavior: "instant" });
+        setIsInitialLoad(false);
+      } else if (!isInitialLoad) {
+        // For subsequent updates, use smooth scrolling
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [path, streamingMessage, isInitialLoad]);
+
+  // Reset initial load state when chat changes
+  useEffect(() => {
+    setIsInitialLoad(true);
+  }, [chatId]);
 
   // Reset per-chat guards when switching chats
   useEffect(() => {
@@ -250,12 +350,13 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     if (!inputValue.trim() || isStreaming || !ready) return;
 
     // Determine what to parent the new message to:
-    // If leaf is an assistant or note, parent to it
-    // If leaf is a user, we need to wait for its response first
-    let parentId = pathLeaf?._id;
+    // Only consider current messages (not inherited) for parent determination
+    // If current leaf is an assistant or note, parent to it
+    // If current leaf is a user, we need to wait for its response first
+    let parentId = currentPathLeaf?._id;
     
-    // If there's no path yet (empty chat), parent to undefined
-    if (path.length === 0) {
+    // If there are no current messages yet, use undefined as parent (start new thread)
+    if (currentMessages.length === 0) {
       parentId = undefined;
     }
     
@@ -275,8 +376,8 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     // Send to streaming API with updated path context
     const newPath = [...path];
     // Only add the new message if it's not already in the path
-    if (!path.some(m => m._id === newUserMessage._id)) {
-      newPath.push(newUserMessage);
+    if (!path.some((m: typeof path[0]) => m._id === newUserMessage._id)) {
+      newPath.push(newUserMessage as typeof path[number]);
     }
 
     // Prepare attachments including extracted content from document
@@ -301,12 +402,12 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
     // Persist overrides for this anchor if provided
     try {
-      if (inclusionOverride && pathLeaf?._id && currentUserId) {
+      if (inclusionOverride && currentPathLeaf?._id && currentUserId) {
         await upsertOverrides({
-          anchorMessageId: pathLeaf._id as any,
-          includeIds: inclusionOverride.includeIds as any,
-          excludeIds: inclusionOverride.excludeIds as any,
-          userId: currentUserId as any,
+          anchorMessageId: currentPathLeaf._id as unknown as Parameters<typeof upsertOverrides>[0]['anchorMessageId'],
+          includeIds: inclusionOverride.includeIds as unknown as Parameters<typeof upsertOverrides>[0]['includeIds'],
+          excludeIds: inclusionOverride.excludeIds as unknown as Parameters<typeof upsertOverrides>[0]['excludeIds'],
+          userId: currentUserId as unknown as Parameters<typeof upsertOverrides>[0]['userId'],
         });
       }
     } catch (e) {
@@ -338,14 +439,14 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
 
     // Build path up to and including the branch point
     const branchPath: typeof messages = [];
-    let cur = byId.get(branchFromId);
-    const guard = new Set<string>();
+    let cur = branchFromId ? byId.get(branchFromId as Id<"messages">) : undefined;
+    const guard = new Set<Id<"messages">>();
     while (cur && !guard.has(cur._id)) {
       branchPath.unshift(cur);
       guard.add(cur._id);
-      cur = cur.parentMessageId ? byId.get(cur.parentMessageId) : undefined;
+      cur = cur && cur.parentMessageId ? byId.get(cur.parentMessageId as Id<"messages">) : undefined;
     }
-    branchPath.push(branchMessage);
+    branchPath.push(branchMessage as typeof branchPath[number]);
 
     // Prepare attachments including extracted content from document
     const attachments = [];
@@ -373,22 +474,97 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     navigator.clipboard.writeText(content);
   };
 
-  const handleExtractConcept = (message: any) => {
-    setSelectedMessageForConcept(message);
-    setConceptSnippet(message.content);
-    setConceptTitle("");
-    setExtractConceptDialog(true);
+  const handleDelete = (messageId: string) => {
+    setMessageToDelete(messageId);
+    setDeleteDialogOpen(true);
   };
 
-  const handleCreateConcept = async () => {
-    if (!conceptTitle.trim() || !conceptSnippet.trim() || !ready) return;
+  const handleConfirmDelete = async () => {
+    if (messageToDelete && ready) {
+      try {
+        await deleteMessage(messageToDelete);
+      } catch (error) {
+        console.error("Failed to delete message:", error);
+      }
+    }
+    setDeleteDialogOpen(false);
+    setMessageToDelete(null);
+  };
 
-    await createConcept(conceptTitle, conceptSnippet, selectedMessageForConcept?._id);
+  const handleExtractConcept = (message: { _id: string; content: string; role: string }) => {
+    setSelectedMessageForConcept(message);
+    setSelectedText(message.content);
+    setCreateConceptOpen(true);
+  };
 
-    setExtractConceptDialog(false);
-    setConceptTitle("");
-    setConceptSnippet("");
-    setSelectedMessageForConcept(null);
+  // Handle text selection from messages
+  const handleTextSelection = (event: React.MouseEvent) => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim()) {
+      const selectedText = selection.toString().trim();
+      
+      // Only show tooltip for selections of reasonable length (avoid accidental single clicks)
+      if (selectedText.length < 3) {
+        return;
+      }
+      
+      // Get cursor position for tooltip
+      const tooltipX = event.clientX;
+      const tooltipY = event.clientY;
+      
+      // Find which message contains the selected text
+      const range = selection.getRangeAt(0);
+      let element: Node | null = range.commonAncestorContainer;
+      
+      // Traverse up the DOM to find the message container
+      while (element && element.nodeType !== Node.ELEMENT_NODE) {
+        element = element.parentNode;
+      }
+      
+      while (element && !(element as Element).getAttribute?.('data-message-id')) {
+        element = (element as Element).parentElement;
+      }
+      
+      if (element && (element as Element).getAttribute('data-message-id')) {
+        const messageId = (element as Element).getAttribute('data-message-id');
+        
+        // Find the full message object
+        const sourceMessage = messages.find((m: typeof messages[0]) => m._id === messageId);
+        if (sourceMessage) {
+          setSelectedText(selectedText);
+          setSelectedMessageForConcept({
+            _id: sourceMessage._id,
+            content: sourceMessage.content,
+            role: sourceMessage.role,
+          });
+          
+          // Show tooltip instead of directly opening dialog
+          setTooltipPosition({ x: tooltipX, y: tooltipY });
+          setTooltipVisible(true);
+        }
+      } else {
+        // Fallback: just set the selected text without message context
+        setSelectedText(selectedText);
+        setSelectedMessageForConcept(null);
+        
+        // Show tooltip instead of directly opening dialog
+        setTooltipPosition({ x: tooltipX, y: tooltipY });
+        setTooltipVisible(true);
+      }
+    }
+  };
+
+  // Handle concept creation from tooltip
+  const handleCreateConceptFromTooltip = () => {
+    setTooltipVisible(false);
+    setCreateConceptOpen(true);
+  };
+
+  // Handle tooltip close
+  const handleTooltipClose = () => {
+    setTooltipVisible(false);
+    // Clear selection to remove highlight
+    window.getSelection()?.removeAllRanges();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -405,9 +581,14 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Chat</h2>
-          {path.length > 0 && (
+          {filteredInheritedMessages.length > 0 && (
+            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
+              +{filteredInheritedMessages.length} inherited
+            </span>
+          )}
+          {filteredPath.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              {path.filter(m => m.role !== "note").length} messages
+              {filteredPath.filter(m => m.role !== "note").length} total messages
             </span>
           )}
         </div>
@@ -417,27 +598,58 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             messages={path}
             currentMessageId={pathLeaf?._id}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {onCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCollapse}
+              aria-label="Collapse Chat panel"
+              title="Collapse"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Messages - showing only the current path */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* Messages - showing inherited context and current path */}
+      <div className="flex-1 overflow-y-auto p-4" onMouseUp={handleTextSelection}>
         <div className="space-y-4">
-          {path.map((node) => (
+          {/* Inherited Context Section */}
+          {filteredInheritedMessages.length > 0 && (
+            <div className="border-l-2 border-blue-200 pl-4 bg-blue-50/30 rounded-r-lg">
+              <div className="mb-3 text-xs text-blue-600 font-medium flex items-center gap-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                Inherited Context ({filteredInheritedMessages.length} messages)
+              </div>
+              {filteredInheritedMessages.map((node: typeof filteredInheritedMessages[0], index: number) => (
+                <div key={`inherited-${node.inheritedFromChatId || node.chatId}-${node._id}-${index}`} className="opacity-75">
+                  <MessageItem
+                    message={node}
+                    isLatest={false}
+                    isInherited={true}
+                    onCopy={() => handleCopy(node.content)}
+                    onExtractConcept={() => handleExtractConcept(node)}
+                    depth={0}
+                  />
+                </div>
+              ))}
+              <div className="border-t border-blue-200 mt-3 pt-3 text-xs text-blue-600">
+                ↓ Current conversation continues below
+              </div>
+            </div>
+          )}
+          
+          {/* Current Messages */}
+          {filteredCurrentMessages.length > 0 && filteredPath.filter((m) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited).map((node) => (
             <MessageItem
-              key={node._id}
+              key={`current-${chatId}-${node._id}`}
               message={node}
               isLatest={node._id === pathLeaf?._id}
               onBranch={node.role === "assistant" ? () => handleBranch(node._id) : undefined}
               onCopy={() => handleCopy(node.content)}
               onExtractConcept={() => handleExtractConcept(node)}
+              onDelete={() => handleDelete(node._id)}
               depth={0}  // Force linear presentation - no indentation
             />
           ))}
@@ -497,9 +709,10 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             size="sm"
             onClick={() => setContextInspectorOpen(true)}
             className="text-xs"
+            disabled={messagesLoading}
           >
             <Info className="mr-1 h-3 w-3" />
-            Context ({path.filter(m => m.role !== "note").length})
+            Context ({messagesLoading ? "…" : `${filteredPath.length}/${path.length}`})
           </Button>
           <Button
             variant="ghost"
@@ -532,12 +745,12 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
               onKeyDown={handleKeyDown}
               placeholder={ready ? "Enter a prompt..." : "Initializing..."}
               className="min-h-[60px] resize-none"
-              disabled={isStreaming || !ready}
+              disabled={isStreaming || !ready || messagesLoading}
             />
             <div className="flex flex-col gap-2">
               <Button
                 onClick={handleSend}
-                disabled={!inputValue.trim() || isStreaming || !ready}
+                disabled={!inputValue.trim() || isStreaming || !ready || messagesLoading}
                 size="icon"
               >
                 <Send className="h-4 w-4" />
@@ -556,6 +769,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         extractedContent={document?.extractedContent}
         documentTitle={document?.title}
         extractionLevel={document?.extractionLevel}
+        currentOverride={inclusionOverride}
       />
 
       {/* Branch Dialog */}
@@ -587,47 +801,50 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         </DialogContent>
       </Dialog>
 
-      {/* Extract Concept Dialog */}
-      <Dialog open={extractConceptDialog} onOpenChange={setExtractConceptDialog}>
-        <DialogContent>
+      {/* Create Concept Dialog */}
+      <CreateConceptDialog
+        open={createConceptOpen}
+        onOpenChange={setCreateConceptOpen}
+        initialTitle={selectedText ? generateTitleFromText(selectedText) : ""}
+        initialSnippet={selectedText}
+        initialFirstPrompt={selectedText ? generateFirstPrompt(selectedText) : "What's the key idea here?"}
+        sourceType="chat"
+        sourceMessageId={selectedMessageForConcept?._id}
+        contextInfo={selectedMessageForConcept ? `From ${selectedMessageForConcept.role} message` : "From selected text"}
+        onSuccess={() => {
+          setSelectedText("");
+          setSelectedMessageForConcept(null);
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Extract Concept</DialogTitle>
+            <DialogTitle>Delete Message</DialogTitle>
             <DialogDescription>
-              Create a new concept from this message
+              Are you sure you want to delete this message? This will also delete all child messages in this branch. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Title</label>
-              <Input
-                placeholder="e.g., Key Insight about X"
-                value={conceptTitle}
-                onChange={(e) => setConceptTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Snippet</label>
-              <Textarea
-                value={conceptSnippet}
-                onChange={(e) => setConceptSnippet(e.target.value)}
-                rows={6}
-              />
-              <p className="text-xs text-muted-foreground">
-                Will link back to the selected response as provenance.
-              </p>
-            </div>
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExtractConceptDialog(false)}>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateConcept} disabled={!conceptTitle.trim()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Concept
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Concept Creation Tooltip */}
+      <ConceptCreationTooltip
+        isVisible={tooltipVisible}
+        position={tooltipPosition}
+        selectedText={selectedText}
+        onCreateConcept={handleCreateConceptFromTooltip}
+        onClose={handleTooltipClose}
+      />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
 import type { Id } from "@/convex/_generated/dataModel";
 
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+const convexClient = new ConvexHttpClient(process.env["NEXT_PUBLIC_CONVEX_URL"]!);
 
 export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req.headers.get("origin"));

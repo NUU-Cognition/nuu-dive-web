@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery } from "convex/react";
@@ -21,6 +21,7 @@ interface Concept {
   _id: string;
   title: string;
   snippet: string;
+  note?: string; // Markdown note attached to the concept
   sourceType: "url" | "pdf" | "chat";
   sourceUrl?: string;
   documentId?: string;
@@ -46,9 +47,15 @@ interface WorkspaceContextType {
   // Data
   concepts: Concept[];
   documents: Document[];
+  documentsLoading: boolean;
+  conceptsLoading: boolean;
   // Leaf cursor management
   getLeafForChat: (chatId: string) => string | undefined;
   setLeafForChat: (chatId: string, messageId: string | null) => void;
+  // Pending (ephemeral) response loading per chat
+  pendingByChat: Record<string, { id: string; parentMessageId?: string } | undefined>;
+  getPendingForChat: (chatId: string) => { id: string; parentMessageId?: string } | undefined;
+  setPendingForChat: (chatId: string, pending: { id: string; parentMessageId?: string } | null) => void;
   // Mutations
   addConcept: (args: {
     title: string;
@@ -59,7 +66,11 @@ interface WorkspaceContextType {
     sourceMessageId?: string; // provenance when created from a response
     firstPrompt: string;      // UI-facing; will be sent as firstQuestion for compat
     pdfId?: string;
-    pdfMeta?: { fileName: string; page?: number; rect?: { x: number; y: number; w: number; h: number } };
+    pdfMeta?: {
+      fileName: string;
+      page?: number;
+      rect?: { x: number; y: number; w: number; h: number };
+    };
   }) => Promise<{ conceptId: string; chatId: string; firstUserMessageId: string }>;
   addDocument: (args: {
     kind: "url" | "pdf";
@@ -71,7 +82,7 @@ interface WorkspaceContextType {
       pageCount?: number;
     };
   }) => Promise<string>;
-  updateConcept: (id: string, updates: Partial<Concept>) => void; // (no-op for now)
+  updateConcept: (id: string, updates: Partial<Concept>) => Promise<void>;
 
   // Selection
   selectedConceptId: string | null;
@@ -80,6 +91,11 @@ interface WorkspaceContextType {
   setSelectedConcept: (conceptId: string | null) => void;
   setSelectedChat: (chatId: string | null) => void;
   setSelectedDocument: (documentId: string | null) => void;
+
+  // Note editing
+  editingConceptNoteId: string | null;
+  setEditingConceptNoteId: (conceptId: string | null) => void;
+  openConceptNote: (conceptId: string) => void;
 
   // Useful context
   diveId: string;
@@ -123,25 +139,25 @@ export function WorkspaceProvider({
     };
   }, [session?.user?.email, session?.user?.name, getOrCreateUser]);
 
-  // Documents and Concepts for this dive (skip for mock and extension dive IDs)
-  const isMockDiveId = diveId === "1" || diveId === "2" || diveId?.startsWith("ext_");
-  
+  // Documents and Concepts for this dive
   const convexDocuments =
     useQuery(
       api.documents.listByDive,
-      !isMockDiveId && diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
-    ) || [];
-    
+      diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
+    );
   const convexConcepts =
     useQuery(
       api.concepts.listByDive,
-      !isMockDiveId && diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
-    ) || [];
+      diveId ? ({ diveId: diveId as Id<"dives"> }) : "skip"
+    );
+
+  const documentsLoading = convexDocuments === undefined;
+  const conceptsLoading = convexConcepts === undefined;
 
   // Map Convex docs to the interface used by components
   const documents: Document[] = useMemo(
     () =>
-      convexDocuments.map((d: DocumentDoc & { responseCount?: number; conceptCount?: number }) => ({
+      (convexDocuments ?? []).map((d: DocumentDoc & { responseCount?: number; conceptCount?: number }) => ({
         _id: d._id as string,
         title: d.title,
         kind: d.kind as Document["kind"],
@@ -156,13 +172,15 @@ export function WorkspaceProvider({
   
   const concepts: Concept[] = useMemo(
     () =>
-      convexConcepts.map((c: ConceptDoc) => ({
+      (convexConcepts ?? []).map((c: ConceptDoc) => ({
         _id: c._id as string,
         title: c.title,
         snippet: c.snippet,
+        note: (c as any).note ?? undefined,
         sourceType: c.sourceType as Concept["sourceType"],
         sourceUrl: c.sourceUrl ?? undefined,
         documentId: (c as any).documentId ?? undefined,
+        sourceMessageId: (c as any).sourceMessageId ?? undefined,
         createdAt: c.createdAt,
         diveId: c.diveId as unknown as string,
         chatId: undefined, // resolved on demand via concepts.get
@@ -177,8 +195,13 @@ export function WorkspaceProvider({
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   
+  // Note editing
+  const [editingConceptNoteId, setEditingConceptNoteId] = useState<string | null>(null);
+  
   // Leaf cursor state - tracks current leaf message per chat
   const [leafByChat, setLeafByChat] = useState<Record<string, string | undefined>>({});
+  const [pendingByChat, setPendingByChat] = 
+    useState<Record<string, { id: string; parentMessageId?: string } | undefined>>({});
 
   const getLeafForChat = useCallback(
     (chatId: string) => leafByChat[chatId],
@@ -188,6 +211,18 @@ export function WorkspaceProvider({
   const setLeafForChat = useCallback((chatId: string, messageId: string | null) => {
     setLeafByChat((prev) => ({ ...prev, [chatId]: messageId ?? undefined }));
   }, []);
+
+  const getPendingForChat = useCallback(
+    (chatId: string) => pendingByChat[chatId],
+    [pendingByChat]
+  );
+  
+  const setPendingForChat = useCallback(
+    (chatId: string, pending: { id: string; parentMessageId?: string } | null) => {
+      setPendingByChat((prev) => ({ ...prev, [chatId]: pending ?? undefined }));
+    },
+    []
+  );
 
   // When the selected concept changes, resolve its chat from Convex
   const selectedConceptDetail = useQuery(
@@ -204,16 +239,20 @@ export function WorkspaceProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [(selectedConceptDetail as any)?.chat?._id, selectedChatId]);
 
-  // Default selection: first concept
+  // Track if user has manually cleared selections
+  const [hasManuallyCleared, setHasManuallyCleared] = useState(false);
+
+  // Default selection: first concept (only if not manually cleared)
   useEffect(() => {
-    if (!selectedConceptId && concepts.length > 0) {
-      setSelectedConceptId(concepts[0]._id);
+    if (!selectedConceptId && concepts.length > 0 && concepts[0]?._id && !hasManuallyCleared) {
+      setSelectedConceptId(concepts[0]._id as string);
     }
-  }, [concepts, selectedConceptId]);
+  }, [conceptsLoading, concepts, selectedConceptId, hasManuallyCleared]);
 
   // Mutations
   const createConcept = useMutation(api.concepts.create);
   const createDocument = useMutation(api.documents.create);
+  const updateConceptMutation = useMutation(api.concepts.update);
 
   const addConcept = useCallback(
     async ({
@@ -243,11 +282,6 @@ export function WorkspaceProvider({
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
-      // Don't allow creating concepts in mock dives
-      if (diveId === "1" || diveId === "2") {
-        throw new Error("Cannot create concepts in demo dives. Please create a new dive first.");
-      }
-      
       const res = await createConcept({
         diveId: diveId as unknown as Id<"dives">,
         title,
@@ -270,7 +304,7 @@ export function WorkspaceProvider({
     },
     [createConcept, currentUserId, diveId]
   );
-  
+
   const addDocument = useCallback(
     async ({
       kind,
@@ -290,11 +324,6 @@ export function WorkspaceProvider({
     }) => {
       if (!currentUserId) throw new Error("User not initialized yet");
       
-      // Don't allow creating documents in mock dives
-      if (diveId === "1" || diveId === "2") {
-        throw new Error("Cannot create documents in demo dives. Please create a new dive first.");
-      }
-      
       const documentId = await createDocument({
         diveId: diveId as unknown as Id<"dives">,
         kind,
@@ -311,14 +340,27 @@ export function WorkspaceProvider({
     [createDocument, currentUserId, diveId]
   );
 
-  // Not used now (kept to avoid refactors)
-  const updateConcept = useCallback((_id: string, _updates: Partial<Concept>) => {
-    // You can wire to convex.dives.update or a concepts.update in future
-  }, []);
+  const updateConcept = useCallback(async (id: string, updates: Partial<Concept>) => {
+    if (!currentUserId) throw new Error("User not initialized yet");
+    
+    // For now, only support updating the note field
+    if (updates.note !== undefined) {
+      await updateConceptMutation({
+        conceptId: id as unknown as Id<"concepts">,
+        note: updates.note,
+      });
+    }
+  }, [updateConceptMutation, currentUserId]);
 
   const setSelectedConcept = useCallback((conceptId: string | null) => {
     setSelectedConceptId(conceptId);
     setSelectedDocumentId(null);
+    // Track when user manually clears selection or makes a new selection
+    if (conceptId === null) {
+      setHasManuallyCleared(true);
+    } else {
+      setHasManuallyCleared(false);
+    }
   }, []);
 
   const setSelectedChat = useCallback((chatId: string | null) => {
@@ -331,11 +373,17 @@ export function WorkspaceProvider({
     // while a document is shown as the main panel.
   }, []);
 
+  const openConceptNote = useCallback((conceptId: string) => {
+    setEditingConceptNoteId(conceptId);
+  }, []);
+
   return (
     <WorkspaceContext.Provider
       value={{
         concepts,
         documents,
+        documentsLoading,
+        conceptsLoading,
         addConcept,
         addDocument,
         updateConcept,
@@ -345,8 +393,14 @@ export function WorkspaceProvider({
         setSelectedConcept,
         setSelectedChat,
         setSelectedDocument,
+        editingConceptNoteId,
+        setEditingConceptNoteId,
+        openConceptNote,
         getLeafForChat,
         setLeafForChat,
+        pendingByChat,
+        getPendingForChat,
+        setPendingForChat,
         diveId,
         currentUserId,
       }}

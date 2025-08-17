@@ -6,8 +6,8 @@ import { generateToken } from "@/lib/pat";
 import { api } from "@/convex/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
 
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-const SALT = process.env.EXT_TOKEN_SALT ?? "default-dev-salt-change-in-production";
+const convexClient = new ConvexHttpClient(process.env["NEXT_PUBLIC_CONVEX_URL"]!);
+const SALT = process.env["EXT_TOKEN_SALT"] ?? "default-dev-salt-change-in-production";
 
 export async function OPTIONS(req: NextRequest) {
   return corsPreflight(req.headers.get("origin"));
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const userEmail = session?.user?.email || "dev@localhost.com";
   
   try {
-    const body = await req.json().catch(() => ({} as any));
+    const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const label = (body?.label as string) || "Chrome Extension";
     const token = generateToken();
     

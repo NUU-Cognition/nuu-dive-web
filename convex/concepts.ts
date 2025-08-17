@@ -44,13 +44,13 @@ export const create = mutation({
       createdAt,
     });
     
-    // Auto-create a chat for this concept with proper anchor
+    // Auto-create a conversation for this concept (but separate from concept)
     const chatId = await ctx.db.insert("chats", {
       diveId: args.diveId,
       anchorType: "concept",
       anchorId: conceptId,
       conceptId, // Keep for backwards compatibility
-      title: args.title,
+      title: `Discussion: ${args.title}`,
       createdBy: args.userId,
       createdAt,
       updatedAt: createdAt,
@@ -71,14 +71,14 @@ export const create = mutation({
       depth: 0,
     });
     
-    // Optionally create first QUESTION (user message)
+    // Create first user message with the provided prompt
     let firstUserMessageId: string | undefined;
     if (args.firstQuestion && args.firstQuestion.trim()) {
       firstUserMessageId = await ctx.db.insert("messages", {
         chatId,
         parentMessageId: noteId,
         role: "user",
-        content: args.firstQuestion, // still named question for API compat; treated as a prompt
+        content: args.firstQuestion.trim(),
         createdBy: args.userId,
         createdAt: createdAt + 1, // Ensure it comes after the note
         depth: 1,
@@ -91,6 +91,7 @@ export const create = mutation({
     return { conceptId, chatId, firstUserMessageId };
   },
 });
+
 
 export const listByDive = query({
   args: {
@@ -127,5 +128,66 @@ export const get = query({
       ...concept,
       chat,
     };
+  },
+});
+
+export const update = mutation({
+  args: {
+    conceptId: v.id("concepts"),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const concept = await ctx.db.get(args.conceptId);
+    if (!concept) {
+      throw new Error("Concept not found");
+    }
+    
+    await ctx.db.patch(args.conceptId, {
+      note: args.note,
+    });
+    
+    return { success: true };
+  },
+});
+
+export const deleteWithChat = mutation({
+  args: {
+    conceptId: v.id("concepts"),
+  },
+  handler: async (ctx, args) => {
+    const concept = await ctx.db.get(args.conceptId);
+    if (!concept) {
+      throw new Error("Concept not found");
+    }
+    
+    // Find associated chat
+    const chat = await ctx.db
+      .query("chats")
+      .withIndex("by_concept", (q) => q.eq("conceptId", args.conceptId))
+      .first();
+    
+    if (chat) {
+      // Get all messages in this chat
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+        .collect();
+      
+      // Soft delete all messages
+      const deletedAt = Date.now();
+      await Promise.all(
+        messages.map((message) =>
+          ctx.db.patch(message._id, { deletedAt })
+        )
+      );
+      
+      // Delete the chat
+      await ctx.db.delete(chat._id);
+    }
+    
+    // Delete the concept
+    await ctx.db.delete(args.conceptId);
+    
+    return { success: true };
   },
 });

@@ -1,10 +1,11 @@
 import { api } from "@/convex/_generated/api";
 import { ConvexHttpClient } from "convex/browser";
+import { randomFillSync } from "crypto";
 
-const SALT = process.env.EXT_TOKEN_SALT ?? "default-dev-salt-change-in-production";
+const SALT = process.env["EXT_TOKEN_SALT"] ?? "default-dev-salt-change-in-production";
 
 // Initialize Convex client for server-side use
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+const convexClient = new ConvexHttpClient(process.env["NEXT_PUBLIC_CONVEX_URL"]!);
 
 export async function resolveUserIdFromPAT(token?: string) {
   if (!token || !SALT) return null;
@@ -51,8 +52,7 @@ export function generateToken(): string {
     window.crypto.getRandomValues(randomBytes);
   } else {
     // Server-side
-    const crypto = require("crypto");
-    crypto.randomFillSync(randomBytes);
+    randomFillSync(randomBytes);
   }
   
   // Convert to base64url

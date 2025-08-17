@@ -2,9 +2,9 @@
 
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { SessionProvider } from "next-auth/react";
-import { ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const convexUrl = process.env["NEXT_PUBLIC_CONVEX_URL"];
 
 export function Providers({ children }: { children: ReactNode }) {
   if (!convexUrl) {
@@ -16,7 +16,7 @@ export function Providers({ children }: { children: ReactNode }) {
   // Always provide a Convex client so hooks don't crash; the placeholder URL avoids immediate runtime throws.
   const convex = useMemo(
     () => new ConvexReactClient(convexUrl ?? "http://127.0.0.1:3210"),
-    [convexUrl]
+    []
   );
   
   return (

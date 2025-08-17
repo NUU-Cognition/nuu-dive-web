@@ -10,14 +10,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface Message {
+  _id: string;
+  role: string;
+  content: string;
+  createdAt: number;
+  [key: string]: unknown;
+}
+
 interface ExportButtonProps {
   chatId: string;
-  messages: any[];
+  messages: Message[];
   currentMessageId?: string;
 }
 
 export default function ExportButton({ 
-  chatId, 
   messages, 
   currentMessageId 
 }: ExportButtonProps) {
@@ -39,11 +46,11 @@ export default function ExportButton({
 
       // Build path from leaf to root
       const path: typeof messages = [];
-      let current = leafMessage;
+      let current: typeof leafMessage | null = leafMessage;
       
       while (current) {
         path.unshift(current);
-        current = messages.find(m => m._id === current.parentMessageId);
+        current = messages.find(m => m._id === current?.["parentMessageId"]) || null;
       }
 
       if (format === "markdown") {
@@ -108,7 +115,7 @@ export default function ExportButton({
   );
 }
 
-function generateMarkdown(messages: any[]): string {
+function generateMarkdown(messages: Message[]): string {
   const lines: string[] = [];
   
   // Header

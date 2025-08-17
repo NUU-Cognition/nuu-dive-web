@@ -3,14 +3,11 @@
 import { useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import CreateConceptDialog from "@/components/concept/CreateConceptDialog";
 
 // Configure PDF.js worker
 if (typeof window !== 'undefined') {
@@ -40,14 +37,10 @@ export default function PdfViewer({
   fileName: string;
   existingHighlights?: ExistingHighlight[];
 }) {
-  const { addConcept } = useWorkspace();
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1.0);
   const [createOpen, setCreateOpen] = useState(false);
-  const [conceptTitle, setConceptTitle] = useState("");
-  const [conceptSnippet, setConceptSnippet] = useState("");
-  const [firstPrompt, setFirstPrompt] = useState("What's the key idea here?");
   const [selectedText, setSelectedText] = useState("");
   const [currentPageDimensions, setCurrentPageDimensions] = useState<{ width: number; height: number } | null>(null);
 
@@ -74,35 +67,8 @@ export default function PdfViewer({
     const selection = window.getSelection();
     if (selection && selection.toString().trim()) {
       setSelectedText(selection.toString());
-      setConceptSnippet(selection.toString());
       setCreateOpen(true);
     }
-  };
-
-  const handleCreateConcept = async () => {
-    if (!conceptSnippet.trim()) return;
-    
-    // Calculate normalized rectangle if we have selection coordinates
-    // For simplicity in this MVP, we'll just store the page number
-    await addConcept({
-      title: conceptTitle.trim() || "PDF Selection",
-      snippet: conceptSnippet.trim(),
-      sourceType: "pdf",
-      documentId,
-      firstPrompt: firstPrompt.trim(),
-      pdfId: fileId,
-      pdfMeta: {
-        fileName,
-        page: pageNumber - 1, // 0-indexed for storage
-      },
-    });
-    
-    // Clean up dialog state
-    setCreateOpen(false);
-    setConceptTitle("");
-    setConceptSnippet("");
-    setFirstPrompt("What's the key idea here?");
-    setSelectedText("");
   };
 
   if (!fileUrl) {
@@ -218,51 +184,22 @@ export default function PdfViewer({
       </div>
 
       {/* Create Concept dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Concept from selection</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-sm">Title</label>
-              <Input
-                value={conceptTitle}
-                onChange={(e) => setConceptTitle(e.target.value)}
-                placeholder="e.g., Key paragraph about X"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm">Snippet</label>
-              <Textarea
-                rows={5}
-                value={conceptSnippet}
-                onChange={(e) => setConceptSnippet(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm">First prompt</label>
-              <Textarea
-                rows={2}
-                value={firstPrompt}
-                onChange={(e) => setFirstPrompt(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Starts a chat anchored to this concept.
-              </p>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              From page {pageNumber} of {fileName}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateConcept} disabled={!conceptSnippet.trim()}>
-              Create Concept
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateConceptDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        initialSnippet={selectedText}
+        sourceType="pdf"
+        documentId={documentId}
+        pdfId={fileId}
+        pdfMeta={{
+          fileName,
+          page: pageNumber - 1, // 0-indexed for storage
+        }}
+        contextInfo={`From page ${pageNumber} of ${fileName}`}
+        onSuccess={() => {
+          setSelectedText("");
+        }}
+      />
     </div>
   );
 }

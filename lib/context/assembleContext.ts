@@ -1,4 +1,4 @@
-import { LLMMessage } from "../llm/provider";
+import { type LLMMessage } from "../llm/provider";
 import { summarizePDFForContext } from "../pdf/extractText";
 
 interface Message {
@@ -10,9 +10,11 @@ interface Message {
 }
 
 interface Attachment {
-  type: "url" | "pdf" | "upload";
+  type: "url" | "pdf" | "upload" | "extracted_content";
   url?: string;
   title?: string;
+  content?: string;
+  filename?: string;
 }
 
 interface ContextOptions {
@@ -28,7 +30,6 @@ export async function assembleContext({
   includeIds,
   excludeIds,
   attachments = [],
-  maxTokens = 4000,
 }: ContextOptions): Promise<{
   system: string;
   contextMessages: LLMMessage[];
@@ -49,6 +50,9 @@ export async function assembleContext({
     );
   }
 
+  // Check if we have inherited messages
+  const inheritedMessages = filteredMessages.filter((m) => (m as Message & { isInherited?: boolean }).isInherited);
+  
   // Find PDF URLs from attachments and messages
   const pdfUrls = new Set<string>();
   
@@ -79,14 +83,14 @@ export async function assembleContext({
     if (m.content.includes('--- Extracted Content ---')) {
       console.log('✅ [CONTEXT] Found extracted content in message:', m._id);
       const contentMatch = m.content.match(/--- Extracted Content ---\n([\s\S]*)/);
-      if (contentMatch) {
+      if (contentMatch && contentMatch[1]) {
         extractedContents.push(`Extracted Content:\n${contentMatch[1]}`);
         console.log('✅ [CONTEXT] Added extracted content, length:', contentMatch[1].length);
       }
     } else if (m.content.includes('--- Extracted PDF Content ---')) {
       console.log('✅ [CONTEXT] Found legacy PDF content in message:', m._id);
       const pdfContentMatch = m.content.match(/--- Extracted PDF Content ---\n([\s\S]*)/);
-      if (pdfContentMatch) {
+      if (pdfContentMatch && pdfContentMatch[1]) {
         extractedContents.push(`PDF Content:\n${pdfContentMatch[1]}`);
         console.log('✅ [CONTEXT] Added PDF content, length:', pdfContentMatch[1].length);
       }
@@ -113,14 +117,20 @@ export async function assembleContext({
     }
   }
   
-  // Build system prompt
+  // Build system prompt with both inheritance and extracted content context
   let system = `You are a helpful AI assistant that helps users explore concepts and ideas through branching conversations. 
 Always cite sources when available using [Source Name](url) format.
 Provide clear, structured responses using markdown formatting.`;
 
+  if (inheritedMessages.length > 0) {
+    system += `
+
+IMPORTANT: This conversation includes inherited context from a related conversation. The first ${inheritedMessages.length} messages are from a previous conversation that spawned this concept-based discussion. Use this context to provide informed responses while clearly building on the established discussion.`;
+  }
+
   if (extractedContents.length > 0) {
     console.log('📋 [CONTEXT] Adding extracted content to system prompt');
-    console.log('📋 [CONTEXT] Content preview:', extractedContents[0].substring(0, 200) + '...');
+    console.log('📋 [CONTEXT] Content preview:', extractedContents[0]?.substring(0, 200) + '...');
     
     system += `
 
@@ -132,7 +142,6 @@ You can reference specific content from these documents when answering questions
   } else {
     console.log('⚠️ [CONTEXT] No extracted content found in messages');
   }
-
   // Convert messages to LLM format - maintain conversation order
   const contextMessages: LLMMessage[] = filteredMessages
     .filter((m) => m.role !== "note") // Notes are for context, not conversation

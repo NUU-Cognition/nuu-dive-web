@@ -33,10 +33,9 @@ export const listByUser = query({
       return [];
     }
     
-    // Get all dives in that workspace
     const dives = await ctx.db
       .query("dives")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", user.workspaceId))
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", user.workspaceId!))
       .order("desc")
       .collect();
     
@@ -66,7 +65,8 @@ export const get = query({
   handler: async (ctx, args) => {
     const dive = await ctx.db.get(args.diveId);
     if (!dive) {
-      throw new Error("Dive not found");
+      // Return null instead of throwing error - let UI handle this gracefully
+      return null;
     }
     
     const concepts = await ctx.db
