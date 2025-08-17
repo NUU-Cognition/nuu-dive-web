@@ -53,7 +53,20 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState<string[]>([]);
-  
+  const [collapsedConcepts, setCollapsedConcepts] = useState<Set<string>>(new Set());
+
+  const toggleConceptCollapse = useCallback((conceptId: string) => {
+    setCollapsedConcepts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(conceptId)) {
+        newSet.delete(conceptId);
+      } else {
+        newSet.add(conceptId);
+      }
+      return newSet;
+    });
+  }, []);
+
   // Get ALL response graphs for this dive at once
   const allGraphs = useQuery(
     api.messages.allResponseGraphs,
@@ -116,23 +129,6 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       }
     }
   }, [selectedChatId, getLeafForChat, selectedNode, responseGraphs, findPathToRoot]);
-    // If we have a selected chat, try to mark its current leaf response as selected
-    // const selectedResponseId = selectedChatId ? getLeafForChat(selectedChatId) : undefined;
-
-    // const handleNodeClick = (nodeId: string, nodeType: string, extra?: { chatId?: string }) => {
-    //   if (nodeType === "document") {
-    //     setSelectedDocument(nodeId);
-    //   } else if (nodeType === "concept") {
-    //     setSelectedConcept(nodeId ?? null);
-    //   } else if (nodeType === "response") {
-    //     const chatId = extra?.chatId;
-    //     if (chatId) {
-    //       setSelectedChat(chatId);
-    //       setLeafForChat(chatId, nodeId); // nodeId is the response message _id
-    //     }
-    //   }
-
-    // };
 
   useEffect(() => {
   // If we have a selected chat, try to mark its current leaf response as selected
@@ -161,6 +157,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
       pendingByChat,
       openConceptNote,
       selectedNode,
+      collapsedConcepts,
+      toggleConceptCollapse,
     );
 
     // Auto-layout if we have nodes
@@ -181,6 +179,8 @@ export default function CanvasView({ diveId }: CanvasViewProps) {
     selectedDocumentId,
     selectedChatId,
     selectedNode,
+    collapsedConcepts,
+    toggleConceptCollapse,
     setNodes,
     setEdges,
     setSelectedConcept,

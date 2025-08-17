@@ -49,6 +49,51 @@ interface Concept {
 }
 
 /**
+ * Find all descendant concepts that should be hidden when a given concept is collapsed
+ * This does NOT include the concept itself, only its descendants
+ */
+function findCollapsedDescendants(
+  conceptId: string,
+  concepts: Concept[],
+  responseGraphs: Map<string, ResponseGraph>,
+  collapsedConcepts: Set<string>
+): Set<string> {
+  const hiddenDescendants = new Set<string>();
+  
+  // If this concept is not collapsed, return empty set
+  if (!collapsedConcepts.has(conceptId)) {
+    return hiddenDescendants;
+  }
+  
+  // Get all response nodes under this concept
+  const responseGraph = responseGraphs.get(conceptId);
+  if (!responseGraph) {
+    return hiddenDescendants;
+  }
+  
+  // Get all response message IDs in this graph
+  const responseMessageIds = new Set(responseGraph.nodes.map(node => node.id));
+  
+  // Find all concepts that were derived from these response messages
+  const derivedConcepts = concepts.filter(concept => 
+    concept.sourceType === "chat" && 
+    concept.sourceMessageId && 
+    responseMessageIds.has(concept.sourceMessageId)
+  );
+  
+  // Add derived concepts and recursively find their descendants
+  for (const derivedConcept of derivedConcepts) {
+    hiddenDescendants.add(derivedConcept._id);
+    
+    // Recursively find descendants of this derived concept
+    const childDescendants = findCollapsedDescendants(derivedConcept._id, concepts, responseGraphs, collapsedConcepts);
+    childDescendants.forEach(id => hiddenDescendants.add(id));
+  }
+  
+  return hiddenDescendants;
+}
+
+/**
  * Find source response node for a chat-sourced concept
  */
 function findSourceResponseNode(
@@ -133,10 +178,21 @@ export function buildGraphElements(
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
   pendingByChat: Record<string, Pending | undefined> = {},
   onConceptDoubleClick?: (conceptId: string) => void,
-  selectedNodePath?: string[] // ADD THIS PARAMETER
+  selectedNodePath?: string[],
+  collapsedConcepts?: Set<string>,
+  onToggleCollapse?: (conceptId: string) => void,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
+  
+  // Build set of all descendant concepts that should be hidden due to hierarchical collapse
+  const hiddenDescendantConcepts = new Set<string>();
+  if (collapsedConcepts) {
+    for (const conceptId of collapsedConcepts) {
+      const descendants = findCollapsedDescendants(conceptId, concepts, responseGraphs, collapsedConcepts);
+      descendants.forEach(id => hiddenDescendantConcepts.add(id));
+    }
+  }
   
   // Position tracking
   let docY = 50;
@@ -162,12 +218,15 @@ export function buildGraphElements(
       },
     });
     
-    // Position concepts related to this document
-    const docConcepts = concepts.filter(c => c.documentId === doc._id);
+    // Position concepts related to this document (filter out hierarchically collapsed descendants)
+    const docConcepts = concepts.filter(c => c.documentId === doc._id && !hiddenDescendantConcepts.has(c._id));
     const conceptX = 400;
     
     docConcepts.forEach((concept, idx) => {
       const conceptNodeId = `concept-${concept._id}`;
+      const isCollapsed = collapsedConcepts?.has(concept._id);
+      const hasResponseGraph = responseGraphs.has(concept._id);
+
       nodes.push({
         id: conceptNodeId,
         type: "conceptNode",
@@ -177,6 +236,10 @@ export function buildGraphElements(
           snippet: concept.snippet,
           sourceType: concept.sourceType,
           selected: selectedId === concept._id,
+          isCollapsed,
+          hasChildren: hasResponseGraph,
+          onToggleCollapse: () => onToggleCollapse?.(concept._id),
+          onClick: () => onNodeClick?.(concept._id, "concept"),
           hasNote: concept.note && concept.note.trim().length > 0,
           onDoubleClick: () => onConceptDoubleClick?.(concept._id),
         },
@@ -193,9 +256,9 @@ export function buildGraphElements(
         style: { stroke: "#94a3b8", strokeWidth: 1 },
       });
       
-      // Add response nodes for this concept's chat
+      // Add response nodes for this concept's chat (only if not collapsed)
       const responseGraph = responseGraphs.get(concept._id);
-      if (responseGraph) {
+      if (responseGraph && !isCollapsed) {
         const { responseNodes, responseEdges } = buildResponseSubgraph(
           responseGraph,
           conceptNodeId,
@@ -229,8 +292,8 @@ export function buildGraphElements(
     docY += docSpacing;
   });
   
-  // Add standalone concepts (not from documents) and chat-sourced concepts
-  const standaloneConcepts = concepts.filter(c => !c.documentId);
+  // Add standalone concepts (not from documents) and chat-sourced concepts (filter out hierarchically collapsed descendants)
+  const standaloneConcepts = concepts.filter(c => !c.documentId && !hiddenDescendantConcepts.has(c._id));
   let standaloneY = 50;
   
   standaloneConcepts.forEach((concept) => {
@@ -274,6 +337,9 @@ export function buildGraphElements(
       standaloneY += 200;
     }
     
+    const isStandaloneCollapsed = collapsedConcepts?.has(concept._id);
+    const hasStandaloneChildren = responseGraphs.has(concept._id);
+    
     nodes.push({
       id: conceptNodeId,
       type: "conceptNode",
@@ -283,14 +349,18 @@ export function buildGraphElements(
         snippet: concept.snippet,
         sourceType: concept.sourceType,
         selected: selectedId === concept._id,
+        isCollapsed: isStandaloneCollapsed,
+        hasChildren: hasStandaloneChildren,
+        onToggleCollapse: () => onToggleCollapse?.(concept._id),
+        onClick: () => onNodeClick?.(concept._id, "concept"),
         hasNote: concept.note && concept.note.trim().length > 0,
         onDoubleClick: () => onConceptDoubleClick?.(concept._id),
       },
     });
     
-    // Add response nodes for this concept
+    // Add response nodes for this concept (only if not collapsed)
     const responseGraph = responseGraphs.get(concept._id);
-    if (responseGraph) {
+    if (responseGraph && !isStandaloneCollapsed) {
       const responseStartPosition = {
         x: conceptPosition.x + 250,
         y: conceptPosition.y,
