@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { MessageSquare, ChevronLeft } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type RightDockProps = {
@@ -15,7 +15,7 @@ type RightDockProps = {
   minWidth?: number;
   maxWidth?: number;
   /** Children (chat panel, etc.) */
-  children: React.ReactNode;
+  children: React.ReactNode | ((props: { onCollapse: () => void }) => React.ReactNode);
   /** Optional className for the content container */
   className?: string;
 };
@@ -95,7 +95,7 @@ export default function RightDock({
         >
           <div className="flex flex-col items-center gap-1">
             <MessageSquare className="h-4 w-4" />
-            <span className="text-[10px] writing-vertical-lr rotate-180">
+            <span className="text-[10px] writing-vertical-lr">
               {label}
             </span>
           </div>
@@ -122,19 +122,9 @@ export default function RightDock({
             )}
           />
 
-          {/* Collapse button (small, overlaid near top-right) */}
-          <button
-            aria-label={`Collapse ${label} panel`}
-            className="absolute -right-3 top-3 z-10 rounded-full border bg-background p-1 shadow hover:bg-accent transition"
-            onClick={() => setCollapsed(true)}
-            title="Collapse"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-
           {/* Content */}
           <div className="h-full w-full overflow-hidden">
-            {children}
+            {typeof children === 'function' ? children({ onCollapse: () => setCollapsed(true) }) : children}
           </div>
         </div>
       )}

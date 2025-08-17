@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Send, GitBranch, Paperclip, Info } from "lucide-react";
+import { Send, GitBranch, Paperclip, Info, ChevronRight } from "lucide-react";
 import MessageItem from "./MessageItem";
 import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
@@ -28,6 +28,7 @@ interface ChatPanelProps {
   chatId: string;
   conceptId: string | null;
   onClose: () => void;
+  onCollapse?: () => void;
 }
 
 // Message interface is imported from useConvexChat hook
@@ -45,7 +46,7 @@ function generateFirstPrompt(text: string): string {
   return `Tell me about: ${text.trim()}`;
 }
 
-export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelProps) {
+export default function ChatPanelV2({ chatId, conceptId, onCollapse }: ChatPanelProps) {
   const [inputValue, setInputValue] = useState("");
   const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
   const [inclusionOverride, setInclusionOverride] = useState<{ includeIds?: string[]; excludeIds?: string[] } | undefined>(undefined);
@@ -137,6 +138,57 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
   }, [leafId, currentByIdMap, inheritedMessages, currentMessages]);
 
   const pathLeaf = path[path.length - 1];
+
+  // Filter messages based on inclusion override for display
+  const filteredPath = useMemo(() => {
+    if (!inclusionOverride) {
+      return path; // No override, show all messages
+    }
+
+    if (inclusionOverride.includeIds) {
+      // Only show messages that are explicitly included
+      return path.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      // Show all messages except those explicitly excluded
+      return path.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return path; // Fallback to showing all
+  }, [path, inclusionOverride]);
+
+  const filteredInheritedMessages = useMemo(() => {
+    if (!inclusionOverride) {
+      return inheritedMessages;
+    }
+
+    if (inclusionOverride.includeIds) {
+      return inheritedMessages.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      return inheritedMessages.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return inheritedMessages;
+  }, [inheritedMessages, inclusionOverride]);
+
+  const filteredCurrentMessages = useMemo(() => {
+    if (!inclusionOverride) {
+      return currentMessages;
+    }
+
+    if (inclusionOverride.includeIds) {
+      return currentMessages.filter(message => inclusionOverride.includeIds!.includes(message._id));
+    }
+
+    if (inclusionOverride.excludeIds) {
+      return currentMessages.filter(message => !inclusionOverride.excludeIds!.includes(message._id));
+    }
+
+    return currentMessages;
+  }, [currentMessages, inclusionOverride]);
   
   // For determining parent of new messages, only consider current messages (not inherited)
   const currentPathLeaf = currentMessages.length > 0 ? 
@@ -222,10 +274,27 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     },
   });
 
+  // Track if this is the initial load
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [path, streamingMessage]);
+    if (messagesEndRef.current) {
+      if (isInitialLoad && path.length > 0) {
+        // On initial load, scroll immediately without animation
+        messagesEndRef.current.scrollIntoView({ behavior: "instant" });
+        setIsInitialLoad(false);
+      } else if (!isInitialLoad) {
+        // For subsequent updates, use smooth scrolling
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [path, streamingMessage, isInitialLoad]);
+
+  // Reset initial load state when chat changes
+  useEffect(() => {
+    setIsInitialLoad(true);
+  }, [chatId]);
 
   // Reset per-chat guards when switching chats
   useEffect(() => {
@@ -467,14 +536,14 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold">Chat</h2>
-          {inheritedMessages.length > 0 && (
+          {filteredInheritedMessages.length > 0 && (
             <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-              +{inheritedMessages.length} inherited
+              +{filteredInheritedMessages.length} inherited
             </span>
           )}
-          {path.length > 0 && (
+          {filteredPath.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              {path.filter(m => m.role !== "note").length} total messages
+              {filteredPath.filter(m => m.role !== "note").length} total messages
             </span>
           )}
         </div>
@@ -484,13 +553,17 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             messages={path}
             currentMessageId={pathLeaf?._id}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {onCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCollapse}
+              aria-label="Collapse Chat panel"
+              title="Collapse"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -498,13 +571,13 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       <div className="flex-1 overflow-y-auto p-4" onMouseUp={handleTextSelection}>
         <div className="space-y-4">
           {/* Inherited Context Section */}
-          {inheritedMessages.length > 0 && (
+          {filteredInheritedMessages.length > 0 && (
             <div className="border-l-2 border-blue-200 pl-4 bg-blue-50/30 rounded-r-lg">
               <div className="mb-3 text-xs text-blue-600 font-medium flex items-center gap-1">
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                Inherited Context ({inheritedMessages.length} messages)
+                Inherited Context ({filteredInheritedMessages.length} messages)
               </div>
-              {inheritedMessages.map((node: typeof inheritedMessages[0], index: number) => (
+              {filteredInheritedMessages.map((node: typeof filteredInheritedMessages[0], index: number) => (
                 <div key={`inherited-${node.inheritedFromChatId || node.chatId}-${node._id}-${index}`} className="opacity-75">
                   <MessageItem
                     message={node}
@@ -523,7 +596,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
           )}
           
           {/* Current Messages */}
-          {currentMessages.length > 0 && path.filter((m) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited).map((node) => (
+          {filteredCurrentMessages.length > 0 && filteredPath.filter((m) => !(m as typeof messages[0] & { isInherited?: boolean }).isInherited).map((node) => (
             <MessageItem
               key={`current-${chatId}-${node._id}`}
               message={node}
@@ -571,7 +644,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
             disabled={messagesLoading}
           >
             <Info className="mr-1 h-3 w-3" />
-            Context ({messagesLoading ? "…" : path.filter(m => m.role !== "note").length})
+            Context ({messagesLoading ? "…" : `${filteredPath.length}/${path.length}`})
           </Button>
           <Button
             variant="ghost"
@@ -625,6 +698,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         onClose={() => setContextInspectorOpen(false)}
         messages={path}
         onSave={(o: { includeIds?: string[]; excludeIds?: string[] }) => setInclusionOverride(o)}
+        currentOverride={inclusionOverride}
       />
 
       {/* Branch Dialog */}

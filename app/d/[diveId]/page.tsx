@@ -321,11 +321,12 @@ function DiveWorkspaceContent() {
 
           {/* Right dock = Chat (resizable & collapsible) */}
           <RightDock storageKey="dock.chat" label="Chat">
-            {selectedChatId ? (
+            {({ onCollapse }) => selectedChatId ? (
               <ChatPanelV2
                 chatId={selectedChatId}
                 conceptId={selectedConceptId ?? null}
                 onClose={() => setSelectedChat(null)}
+                onCollapse={onCollapse}
               />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">
