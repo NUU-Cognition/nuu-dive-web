@@ -217,16 +217,20 @@ export default function ChatPanelV2({ chatId, conceptId, onCollapse }: ChatPanel
 
   // Streaming hook for LLM responses
   const { sendMessage, isStreaming } = useStreamChat({
-    onStart: ({ messageId }) => {
+    onStart: ({ messageId, chatId: streamChatId, parentMessageId }) => {
       // Create ephemeral loading dot for this chat immediately
-      setPendingForChat(chatId, { id: messageId, parentMessageId: pendingParentIdRef.current ?? undefined });
+      // Use the parentMessageId from the stream if available, otherwise fall back to our ref
+      const cid = streamChatId || chatId;
+      const actualParentId = parentMessageId ?? pendingParentIdRef.current;
+      setPendingForChat(cid, { id: messageId, parentMessageId: actualParentId ?? undefined });
     },
     onToken: (token) => {
       setStreamingMessage((prev) => prev + token);
     },
-    onComplete: async (fullText) => {
+    onComplete: async ({ fullText, messageId, chatId: streamChatId, parentMessageId }) => {
       // Remove loading dot; persisted message will appear next render
-      setPendingForChat(chatId, null);
+      const cid = streamChatId || chatId;
+      setPendingForChat(cid, null);
       console.log("Stream complete, saving assistant message");
       console.log("Full text length:", fullText?.length);
       console.log("Pending parent ID (state):", pendingParentId);

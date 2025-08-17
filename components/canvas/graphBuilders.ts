@@ -532,13 +532,37 @@ function buildResponseSubgraph(
   // If there is an in-flight response, append a loading node at the end
   if (pending) {
     const pendingNodeId = `pending-${graph.anchor.chatId}-${pending.id}`;
-    // Position below the last item (or at first row if empty)
-    const lastNode = graph.nodes[graph.nodes.length - 1];
-    const attachToId =
-      graph.nodes.length > 0 && lastNode ? `response-${lastNode.id}` : anchorNodeId;
-    if (graph.nodes.length === 0) {
-      // align to first position when there were no nodes
-      responseY = startPosition.y + 50;
+    
+    // Determine where to attach the pending node:
+    // 1. If pending has a parentMessageId, try to find that node and attach to it
+    // 2. Otherwise fall back to the last node in the graph (old behavior)
+    let attachToId: string;
+    
+    if (pending.parentMessageId) {
+      // Try to find the parent node in the response nodes
+      const parentResponseNode = graph.nodes.find(n => n.id === pending.parentMessageId);
+      if (parentResponseNode) {
+        attachToId = `response-${parentResponseNode.id}`;
+        // Find the position of the parent node to place pending below it
+        const parentNodeInList = responseNodes.find(n => n.id === attachToId);
+        if (parentNodeInList) {
+          responseY = parentNodeInList.position.y + responseSpacing;
+        }
+      } else {
+        // Parent might be the anchor node itself (for initial message)
+        attachToId = anchorNodeId;
+        if (graph.nodes.length === 0) {
+          responseY = startPosition.y + 50;
+        }
+      }
+    } else {
+      // Fall back to old behavior: attach to last node or anchor
+      const lastNode = graph.nodes[graph.nodes.length - 1];
+      attachToId = graph.nodes.length > 0 && lastNode ? `response-${lastNode.id}` : anchorNodeId;
+      if (graph.nodes.length === 0) {
+        // align to first position when there were no nodes
+        responseY = startPosition.y + 50;
+      }
     }
     responseNodes.push({
       id: pendingNodeId,

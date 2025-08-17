@@ -49,17 +49,26 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
   const createUserMessage = useMutation(api.messages.createUser);
   const createAssistantMessage = useMutation(api.messages.createAssistant);
   
+  // Keep ref for the pending parent ID to ensure we have it for the callback
+  const pendingParentIdRef = useRef<string | null>(null);
+  useEffect(() => { pendingParentIdRef.current = pendingParentId; }, [pendingParentId]);
+  
   // Streaming hook
   const { sendMessage, isStreaming } = useStreamChat({
-    onStart: ({ messageId }) => {
-      const cid = activeChatIdRef.current;
-      if (cid) setPendingForChat(cid, { id: messageId, parentMessageId: pendingParentId ?? undefined });
+    onStart: ({ messageId, chatId, parentMessageId }) => {
+      const cid = chatId || activeChatIdRef.current;
+      if (cid) {
+        setPendingForChat(cid, {
+          id: messageId,
+          parentMessageId: parentMessageId ?? (pendingParentIdRef.current || undefined),
+        });
+      }
     },
     onToken: (token) => {
       setStreamingMessage((prev) => prev + token);
     },
-    onComplete: async (fullText) => {
-      const cid = activeChatIdRef.current;
+    onComplete: async ({ fullText, messageId, chatId }) => {
+      const cid = chatId || activeChatIdRef.current;
       if (cid) setPendingForChat(cid, null);
       // Persist assistant reply under the user message we just created
       if (activeChatId && pendingParentId && currentUserId) {
@@ -82,7 +91,9 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
     onError: (error) => {
       console.error("Stream error:", error);
       const cid = activeChatIdRef.current;
-      if (cid) setPendingForChat(cid, null);
+      if (cid) {
+        setPendingForChat(cid, null);
+      }
       setStreamingMessage("");
       setIsCreatingChat(false);
     },
