@@ -192,6 +192,7 @@ export default function DivesListPage() {
   const createDive = useMutation(api.dives.create);
   const createConcept = useMutation(api.concepts.create);
   const addDocument = useMutation(api.documents.create);
+  const updateDive = useMutation(api.dives.update);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -236,7 +237,45 @@ export default function DivesListPage() {
     }
   }, [searchParams, status]);
 
-  const updateDive = useMutation(api.dives.update);
+  // Filtering + sorting logic - must be before early returns to maintain hook order
+  const normalized = searchQuery.trim().toLowerCase();
+  const filteredDives = useMemo(() => {
+    let list = dives as Array<{
+      _id: string;
+      title: string;
+      description?: string;
+      updatedAt: number;
+      conceptCount?: number;
+    }>;
+
+    if (normalized) {
+      list = list.filter((d) => {
+        const t = d.title?.toLowerCase() || "";
+        const desc = (d.description || "").toLowerCase();
+        return t.includes(normalized) || desc.includes(normalized);
+      });
+    }
+
+    if (showPinnedOnly) {
+      list = list.filter((d) => pinnedSet.has(d._id));
+    }
+
+    // Sort
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === "alpha") {
+        return a.title.localeCompare(b.title);
+      }
+      if (sortBy === "concepts") {
+        const ac = a.conceptCount ?? 0;
+        const bc = b.conceptCount ?? 0;
+        return bc - ac;
+      }
+      // recent
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+
+    return sorted;
+  }, [dives, normalized, sortBy, showPinnedOnly, pinnedSet]);
 
   if (status === "loading") {
     return (
@@ -519,46 +558,6 @@ export default function DivesListPage() {
       console.error("Failed to rename dive:", e);
     }
   };
-
-  // Filtering + sorting
-  const normalized = searchQuery.trim().toLowerCase();
-  const filteredDives = useMemo(() => {
-    let list = dives as Array<{
-      _id: string;
-      title: string;
-      description?: string;
-      updatedAt: number;
-      conceptCount?: number;
-    }>;
-
-    if (normalized) {
-      list = list.filter((d) => {
-        const t = d.title?.toLowerCase() || "";
-        const desc = (d.description || "").toLowerCase();
-        return t.includes(normalized) || desc.includes(normalized);
-      });
-    }
-
-    if (showPinnedOnly) {
-      list = list.filter((d) => pinnedSet.has(d._id));
-    }
-
-    // Sort
-    const sorted = [...list].sort((a, b) => {
-      if (sortBy === "alpha") {
-        return a.title.localeCompare(b.title);
-      }
-      if (sortBy === "concepts") {
-        const ac = a.conceptCount ?? 0;
-        const bc = b.conceptCount ?? 0;
-        return bc - ac;
-      }
-      // recent
-      return (b.updatedAt || 0) - (a.updatedAt || 0);
-    });
-
-    return sorted;
-  }, [dives, normalized, sortBy, showPinnedOnly, pinnedSet]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -921,8 +920,8 @@ export default function DivesListPage() {
 
         {/* Extension Capture Modal */}
         <Dialog open={captureModalOpen} onOpenChange={setCaptureModalOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle className="flex items-center gap-2">
                 <Badge variant="secondary">From Extension</Badge>
                 Captured Text Ready to Dive
@@ -933,23 +932,23 @@ export default function DivesListPage() {
             </DialogHeader>
 
             {capturedData && (
-              <div className="space-y-6">
+              <div className="flex-1 overflow-y-auto space-y-4">
                 {/* Captured Content Display */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-start gap-4">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        <FileText className="h-5 w-5 text-blue-600" />
+                <Card className="flex-shrink-0">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-blue-100 p-2 rounded-lg flex-shrink-0">
+                        <FileText className="h-4 w-4 text-blue-600" />
                       </div>
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">{capturedData.sourceTitle}</CardTitle>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base leading-tight">{capturedData.sourceTitle}</CardTitle>
                         <CardDescription className="flex items-center gap-2 mt-1">
-                          <Link2 className="h-4 w-4" />
+                          <Link2 className="h-3 w-3 flex-shrink-0" />
                           <a 
                             href={capturedData.sourceUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="hover:underline"
+                            className="hover:underline text-xs truncate"
                           >
                             {capturedData.sourceUrl}
                           </a>
@@ -957,9 +956,9 @@ export default function DivesListPage() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="bg-gray-50 p-4 rounded-lg border-l-4 border-blue-500">
-                      <p className="text-gray-800 italic">
+                  <CardContent className="pt-0">
+                    <div className="bg-gray-50 p-3 rounded-lg border-l-4 border-blue-500">
+                      <p className="text-gray-800 italic text-sm line-clamp-3">
                         "{capturedData.text}"
                       </p>
                     </div>
@@ -967,44 +966,46 @@ export default function DivesListPage() {
                 </Card>
 
                 {/* Action Options */}
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid lg:grid-cols-2 gap-4">
                   {/* Create New Dive */}
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Plus className="h-5 w-5 text-green-600" />
+                  <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Plus className="h-4 w-4 text-green-600" />
                         Create New Dive
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-xs">
                         Start a fresh research dive with this captured content
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Dive Title</label>
+                    <CardContent className="space-y-3 pt-0">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Dive Title</label>
                         <Input
                           value={newDiveTitle}
                           onChange={(e) => setNewDiveTitle(e.target.value)}
                           placeholder="Enter dive title..."
+                          className="text-sm"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Description (Optional)</label>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">Description (Optional)</label>
                         <Textarea
                           value={newDiveDescription}
                           onChange={(e) => setNewDiveDescription(e.target.value)}
                           placeholder="Describe what you want to research..."
                           rows={2}
+                          className="text-sm resize-none"
                         />
                       </div>
                       
                       {/* Content Extraction Options - Only show for PDFs */}
                       {capturedData?.sourceUrl.includes('.pdf') ? (
-                        <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <label className="text-sm font-medium text-blue-900">
+                        <div className="space-y-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                          <label className="text-xs font-medium text-blue-900">
                             PDF Content Extraction
                           </label>
-                        <div className="space-y-2">
+                          <div className="space-y-1">
                             <div className="flex items-center space-x-2">
                               <input
                                 type="radio"
@@ -1013,9 +1014,9 @@ export default function DivesListPage() {
                                 value="none"
                                 checked={extractPdfContext === 'none'}
                                 onChange={(e) => setExtractPdfContext(e.target.value as 'none')}
-                                className="w-4 h-4 text-blue-600"
+                                className="w-3 h-3 text-blue-600"
                               />
-                              <label htmlFor="extract-none" className="text-sm text-gray-700">
+                              <label htmlFor="extract-none" className="text-xs text-gray-700">
                                 No extraction - Just reference the source URL
                               </label>
                             </div>
@@ -1027,10 +1028,10 @@ export default function DivesListPage() {
                                 value="basic"
                                 checked={extractPdfContext === 'basic'}
                                 onChange={(e) => setExtractPdfContext(e.target.value as 'basic')}
-                                className="w-4 h-4 text-blue-600"
+                                className="w-3 h-3 text-blue-600"
                               />
-                              <label htmlFor="extract-basic" className="text-sm text-gray-700">
-                                Basic - Extract key headings and structure (fast, ~5-10 seconds)
+                              <label htmlFor="extract-basic" className="text-xs text-gray-700">
+                                Basic - Extract key headings (fast, ~5-10s)
                               </label>
                             </div>
                             <div className="flex items-center space-x-2">
@@ -1041,10 +1042,10 @@ export default function DivesListPage() {
                                 value="full"
                                 checked={extractPdfContext === 'full'}
                                 onChange={(e) => setExtractPdfContext(e.target.value as 'full')}
-                                className="w-4 h-4 text-blue-600"
+                                className="w-3 h-3 text-blue-600"
                               />
-                              <label htmlFor="extract-full" className="text-sm text-gray-700">
-                                Full - Extract complete structured content (moderate, ~15-25 seconds)
+                              <label htmlFor="extract-full" className="text-xs text-gray-700">
+                                Full - Complete content (moderate, ~15-25s)
                               </label>
                             </div>
                           </div>
@@ -1056,56 +1057,58 @@ export default function DivesListPage() {
                         </div>
                       ) : (
                         /* For non-PDF URLs, show automatic extraction notice */
-                        <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <label className="text-sm font-medium text-green-900">
+                        <div className="p-2 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                            <label className="text-xs font-medium text-green-900">
                               Automatic Website Structure Extraction
                             </label>
                           </div>
                           <p className="text-xs text-green-700">
-                            We'll automatically extract the page structure, headings, and key sections to help with your research.
+                            We'll automatically extract the page structure to help with your research.
                           </p>
                         </div>
                       )}
                       
                       <Button 
                         onClick={handleCreateNewDiveWithCapture}
-                        className="w-full"
+                        className="w-full text-sm"
+                        size="sm"
                         disabled={isCreating || !newDiveTitle.trim() || !currentWorkspaceId}
                       >
-                        {isCreating ? "Creating..." : !currentWorkspaceId ? "Loading..." : "Create New Dive"} <ArrowRight className="h-4 w-4 ml-2" />
+                        {isCreating ? "Creating..." : !currentWorkspaceId ? "Loading..." : "Create New Dive"} 
+                        <ArrowRight className="h-3 w-3 ml-2" />
                       </Button>
                     </CardContent>
                   </Card>
 
                   {/* Add to Existing Dive */}
                   <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-blue-600" />
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <FileText className="h-4 w-4 text-blue-600" />
                         Add to Existing Dive
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-xs">
                         Add this content to one of your existing research dives
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <CardContent className="pt-0">
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
                         {filteredDives.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-4">
+                          <p className="text-xs text-muted-foreground text-center py-4">
                             No existing dives found. Create your first dive above!
                           </p>
                         ) : (
                           filteredDives.map((dive) => (
                             <div
                               key={dive._id}
-                              className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                              className="flex items-center justify-between p-2 border rounded-lg hover:bg-gray-50"
                             >
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{dive.title}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-xs truncate">{dive.title}</p>
                                 {dive.description && (
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="text-xs text-muted-foreground truncate">
                                     {dive.description}
                                   </p>
                                 )}
@@ -1115,6 +1118,7 @@ export default function DivesListPage() {
                                 variant="outline"
                                 onClick={() => handleAddToExistingDive(dive._id)}
                                 disabled={isCreating}
+                                className="text-xs px-2 py-1 h-6 ml-2 flex-shrink-0"
                               >
                                 Add Here
                               </Button>
@@ -1128,7 +1132,7 @@ export default function DivesListPage() {
               </div>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0 mt-4">
               <Button variant="outline" onClick={() => setCaptureModalOpen(false)}>
                 Cancel
               </Button>
