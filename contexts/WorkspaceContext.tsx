@@ -377,6 +377,19 @@ export function WorkspaceProvider({
     setEditingConceptNoteId(conceptId);
   }, []);
 
+  // When a document is selected, resolve its chat and show it in the right dock
+  const selectedDocumentDetail = useQuery(
+    api.documents.get,
+    selectedDocumentId ? ({ documentId: selectedDocumentId as unknown as Id<"documents"> }) : "skip"
+  );
+  useEffect(() => {
+    const chatId = (selectedDocumentDetail as any)?.chat?._id as string | undefined;
+    if (chatId && chatId !== selectedChatId) {
+      setSelectedChatId(chatId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(selectedDocumentDetail as any)?.chat?._id]);
+
   return (
     <WorkspaceContext.Provider
       value={{

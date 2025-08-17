@@ -100,18 +100,18 @@ export const get = query({
       .withIndex("by_document", (q) => q.eq("documentId", args.documentId))
       .collect();
     
-    // Get chats anchored to this document
-    const chats = await ctx.db
+    // Get chat anchored to this document (should be at most one)
+    const chat = await ctx.db
       .query("chats")
       .withIndex("by_anchor", (q) => 
         q.eq("anchorType", "document").eq("anchorId", args.documentId)
       )
-      .collect();
+      .first();
     
     return {
       ...document,
       concepts,
-      chats,
+      chat,
     };
   },
 });
