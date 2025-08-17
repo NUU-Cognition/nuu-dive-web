@@ -1,8 +1,8 @@
 import { type Node, type Edge } from "reactflow";
 
-type NodeWithLayout = Node & { 
-  children: NodeWithLayout[]; 
-  depth: number; 
+type NodeWithLayout = Node & {
+  children: NodeWithLayout[];
+  depth: number;
 };
 
 interface ResponseGraphNode {
@@ -59,37 +59,37 @@ function findCollapsedDescendants(
   collapsedConcepts: Set<string>
 ): Set<string> {
   const hiddenDescendants = new Set<string>();
-  
+
   // If this concept is not collapsed, return empty set
   if (!collapsedConcepts.has(conceptId)) {
     return hiddenDescendants;
   }
-  
+
   // Get all response nodes under this concept
   const responseGraph = responseGraphs.get(conceptId);
   if (!responseGraph) {
     return hiddenDescendants;
   }
-  
+
   // Get all response message IDs in this graph
   const responseMessageIds = new Set(responseGraph.nodes.map(node => node.id));
-  
+
   // Find all concepts that were derived from these response messages
-  const derivedConcepts = concepts.filter(concept => 
-    concept.sourceType === "chat" && 
-    concept.sourceMessageId && 
+  const derivedConcepts = concepts.filter(concept =>
+    concept.sourceType === "chat" &&
+    concept.sourceMessageId &&
     responseMessageIds.has(concept.sourceMessageId)
   );
-  
+
   // Add derived concepts and recursively find their descendants
   for (const derivedConcept of derivedConcepts) {
     hiddenDescendants.add(derivedConcept._id);
-    
+
     // Recursively find descendants of this derived concept
     const childDescendants = findCollapsedDescendants(derivedConcept._id, concepts, responseGraphs, collapsedConcepts);
     childDescendants.forEach(id => hiddenDescendants.add(id));
   }
-  
+
   return hiddenDescendants;
 }
 
@@ -97,7 +97,7 @@ function findCollapsedDescendants(
  * Find source response node for a chat-sourced concept
  */
 function findSourceResponseNode(
-  responseGraphs: Map<string, ResponseGraph>, 
+  responseGraphs: Map<string, ResponseGraph>,
   concept: Concept,
   documents?: Document[],
   concepts?: Concept[]
@@ -106,13 +106,13 @@ function findSourceResponseNode(
   if (concept.sourceType !== "chat" || !concept.sourceMessageId) {
     return null;
   }
-  
-  
+
+
   // Search through all response graphs to find the source message or its related response
   for (const [, graph] of responseGraphs) {
     // First, try to find the source message directly (if it's an assistant message)
     let responseNode = graph.nodes.find(n => n.id === concept.sourceMessageId);
-    
+
     // If not found, the source might be a user message - find the assistant response to it
     if (!responseNode) {
       // Look through edges to find an assistant response that was prompted by this user message
@@ -123,11 +123,11 @@ function findSourceResponseNode(
         }
       }
     }
-    
+
     if (responseNode) {
       // Calculate approximate position based on anchor type and position
       let basePosition = { x: 50, y: 50 };
-      
+
       // Try to determine position based on anchor
       if (graph.anchor.type === "document" && documents) {
         const doc = documents.find(d => d._id === graph.anchor.id);
@@ -149,21 +149,21 @@ function findSourceResponseNode(
           basePosition = { x: 800, y: 50 };
         }
       }
-      
+
       // Estimate response node position based on its order in the graph
       const nodeIndex = graph.nodes.indexOf(responseNode);
       const responsePosition = {
         x: basePosition.x + 250,
         y: basePosition.y + 50 + nodeIndex * 40,
       };
-      
+
       return {
         nodeId: `response-${responseNode.id}`,
         position: responsePosition,
       };
     }
   }
-  
+
   return null;
 }
 
@@ -181,10 +181,11 @@ export function buildGraphElements(
   selectedNodePath?: string[],
   collapsedConcepts?: Set<string>,
   onToggleCollapse?: (conceptId: string) => void,
+  editMode?: boolean // ADD EDIT MODE PARAMETER
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
-  
+
   // Build set of all descendant concepts that should be hidden due to hierarchical collapse
   const hiddenDescendantConcepts = new Set<string>();
   if (collapsedConcepts) {
@@ -193,11 +194,11 @@ export function buildGraphElements(
       descendants.forEach(id => hiddenDescendantConcepts.add(id));
     }
   }
-  
+
   // Position tracking
   let docY = 50;
   const docSpacing = 400;
-  
+
   // Create document nodes
   documents.forEach((doc) => {
     const nodeId = `doc-${doc._id}`;
@@ -215,13 +216,14 @@ export function buildGraphElements(
         onAsk: () => onNodeClick?.(doc._id, "document"),
         // Open in main panel (replace canvas)
         onOpen: () => onNodeClick?.(doc._id, "document"),
+        editMode: editMode || false,
       },
     });
-    
+
     // Position concepts related to this document (filter out hierarchically collapsed descendants)
     const docConcepts = concepts.filter(c => c.documentId === doc._id && !hiddenDescendantConcepts.has(c._id));
     const conceptX = 400;
-    
+
     docConcepts.forEach((concept, idx) => {
       const conceptNodeId = `concept-${concept._id}`;
       const isCollapsed = collapsedConcepts?.has(concept._id);
@@ -242,9 +244,10 @@ export function buildGraphElements(
           onClick: () => onNodeClick?.(concept._id, "concept"),
           hasNote: concept.note && concept.note.trim().length > 0,
           onDoubleClick: () => onConceptDoubleClick?.(concept._id),
+          editMode: editMode || false,
         },
       });
-      
+
       // Edge from document to concept
       edges.push({
         id: `${nodeId}-${conceptNodeId}`,
@@ -255,7 +258,7 @@ export function buildGraphElements(
         type: "smoothstep",
         style: { stroke: "#94a3b8", strokeWidth: 1 },
       });
-      
+
       // Add response nodes for this concept's chat (only if not collapsed)
       const responseGraph = responseGraphs.get(concept._id);
       if (responseGraph && !isCollapsed) {
@@ -267,12 +270,13 @@ export function buildGraphElements(
           onNodeClick,
           selectedNodePath, // ADD THIS
           pendingByChat[responseGraph.anchor.chatId],
+          editMode,
         );
         nodes.push(...responseNodes);
         edges.push(...responseEdges);
       }
     });
-    
+
     // Add response nodes directly under documents
     const docResponseGraph = responseGraphs.get(doc._id);
     if (docResponseGraph) {
@@ -284,40 +288,41 @@ export function buildGraphElements(
         onNodeClick,
         selectedNodePath, // ADD THIS
         pendingByChat[docResponseGraph.anchor.chatId],
+        editMode,
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
     }
-    
+
     docY += docSpacing;
   });
-  
+
   // Add standalone concepts (not from documents) and chat-sourced concepts (filter out hierarchically collapsed descendants)
   const standaloneConcepts = concepts.filter(c => !c.documentId && !hiddenDescendantConcepts.has(c._id));
   let standaloneY = 50;
-  
+
   standaloneConcepts.forEach((concept) => {
     const conceptNodeId = `concept-${concept._id}`;
-    
+
     // Check if this concept was derived from a chat message
     const sourceInfo = findSourceResponseNode(responseGraphs, concept, documents, concepts);
-    
+
     let conceptPosition;
     if (sourceInfo) {
       // Position relative to source response node
-      conceptPosition = { 
-        x: sourceInfo.position.x + 150, 
-        y: sourceInfo.position.y 
+      conceptPosition = {
+        x: sourceInfo.position.x + 150,
+        y: sourceInfo.position.y
       };
-      
+
       // Create edge from source response to concept
       edges.push({
         id: `${sourceInfo.nodeId}-${conceptNodeId}`,
         source: sourceInfo.nodeId,
         target: conceptNodeId,
         type: "smoothstep",
-        style: { 
-          stroke: "#10b981", 
+        style: {
+          stroke: "#10b981",
           strokeWidth: 2,
           strokeDasharray: "5,5"
         },
@@ -336,10 +341,10 @@ export function buildGraphElements(
       conceptPosition = { x: 800, y: standaloneY };
       standaloneY += 200;
     }
-    
+
     const isStandaloneCollapsed = collapsedConcepts?.has(concept._id);
     const hasStandaloneChildren = responseGraphs.has(concept._id);
-    
+
     nodes.push({
       id: conceptNodeId,
       type: "conceptNode",
@@ -355,9 +360,10 @@ export function buildGraphElements(
         onClick: () => onNodeClick?.(concept._id, "concept"),
         hasNote: concept.note && concept.note.trim().length > 0,
         onDoubleClick: () => onConceptDoubleClick?.(concept._id),
+        editMode: editMode || false,
       },
     });
-    
+
     // Add response nodes for this concept (only if not collapsed)
     const responseGraph = responseGraphs.get(concept._id);
     if (responseGraph && !isStandaloneCollapsed) {
@@ -365,7 +371,7 @@ export function buildGraphElements(
         x: conceptPosition.x + 250,
         y: conceptPosition.y,
       };
-      
+
       const { responseNodes, responseEdges } = buildResponseSubgraph(
         responseGraph,
         conceptNodeId,
@@ -374,60 +380,61 @@ export function buildGraphElements(
         onNodeClick,
         selectedNodePath, // ADD THIS
         pendingByChat[responseGraph.anchor.chatId],
+        editMode,
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
     }
   });
-  
+
   // Add free chats (chats without anchors)
   const freeChats: { graph: ResponseGraph; chatId: string }[] = [];
   responseGraphs.forEach((graph, key) => {
     // Check if this key is already handled (as document or concept)
     const isDocument = documents.some(d => d._id === key);
     const isConcept = concepts.some(c => c._id === key);
-    
+
     // If not handled and it's a free chat
     if (!isDocument && !isConcept && graph.anchor?.type === "free") {
       freeChats.push({ graph, chatId: graph.anchor.chatId });
     }
   });
-  
+
   // Render free chats in a separate section
   if (freeChats.length > 0) {
     const freeChatY = Math.max(docY, standaloneY) + 100;
-    
+
     // Add a label node for free chats section
     nodes.push({
       id: "free-chats-label",
       type: "default",
       position: { x: 50, y: freeChatY - 30 },
       data: { label: "Free Chats" },
-      style: { 
-        background: "transparent", 
+      style: {
+        background: "transparent",
         border: "none",
         fontSize: "14px",
         fontWeight: "bold"
       }
     });
-    
+
     freeChats.forEach(({ graph, chatId }, idx) => {
       const anchorNodeId = `free-chat-${chatId}`;
-      
+
       // Create an anchor node for the free chat
       nodes.push({
         id: anchorNodeId,
         type: "default",
         position: { x: 50, y: freeChatY + idx * 150 },
         data: { label: `Chat ${idx + 1}` },
-        style: { 
+        style: {
           background: "#f3f4f6",
           border: "1px solid #d1d5db",
           borderRadius: "8px",
           padding: "8px 12px"
         }
       });
-      
+
       // Add response nodes for this free chat
       const { responseNodes, responseEdges } = buildResponseSubgraph(
         graph,
@@ -437,12 +444,13 @@ export function buildGraphElements(
         onNodeClick,
         selectedNodePath, // ADD THIS
         pendingByChat[graph.anchor.chatId],
+        editMode,
       );
       nodes.push(...responseNodes);
       edges.push(...responseEdges);
     });
   }
-  
+
   return { nodes, edges };
 }
 
@@ -455,27 +463,28 @@ function buildResponseSubgraph(
   startPosition: { x: number; y: number },
   selectedId?: string | null,
   onNodeClick?: (nodeId: string, nodeType: string, extra?: { chatId?: string }) => void,
-  selectedNodePath?: string[] ,
-  pending?: Pending
+  selectedNodePath?: string[],
+  pending?: Pending,
+  editMode?: boolean
 ): { responseNodes: Node[]; responseEdges: Edge[] } {
   const responseNodes: Node[] = [];
   const responseEdges: Edge[] = [];
-  
+
   // Use a simple vertical layout for responses
   let responseY = startPosition.y + 50;
   const responseSpacing = 40;
-  
+
   // NOTE: no placeholder anymore — clean surface when empty
-  
+
   // ADD: Check if any node is selected (for hasSelection)
   const hasSelection = selectedNodePath && selectedNodePath.length > 0;
-  
+
   graph.nodes.forEach((node) => {
     const nodeId = `response-${node.id}`;
-    
+
     // ADD: Check if this specific node is in the selected path
     const isInPath = selectedNodePath ? selectedNodePath.includes(nodeId) : false;
-    
+
     responseNodes.push({
       id: nodeId,
       type: "responseNode",
@@ -488,19 +497,20 @@ function buildResponseSubgraph(
         onClick: () => onNodeClick?.(node.id, "response", { chatId: graph.anchor.chatId }),
         isInPath, // ADD THIS
         hasSelection, // ADD THIS
+        editMode: editMode || false,
       },
     });
-    
+
     responseY += responseSpacing;
   });
-  
+
   // Create edges
   graph.edges.forEach((edge) => {
-    const sourceId = edge.from.type === "response" 
+    const sourceId = edge.from.type === "response"
       ? `response-${edge.from.id}`
       : anchorNodeId;
     const targetId = `response-${edge.to.id}`;
-    
+
     responseEdges.push({
       id: `${sourceId}-${targetId}`,
       source: sourceId,
@@ -555,7 +565,7 @@ function buildResponseSubgraph(
       style: { stroke: "#cbd5e1", strokeWidth: 1, strokeDasharray: "4,4" },
     });
   }
-  
+
   return { responseNodes, responseEdges };
 }
 
@@ -563,7 +573,7 @@ function buildResponseSubgraph(
  * Auto-layout the graph using dagre
  */
 export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
-  const nodeMap = new Map<string, NodeWithLayout>(nodes.map(n => [n.id, { ...n, children: [], depth: 0}]));
+  const nodeMap = new Map<string, NodeWithLayout>(nodes.map(n => [n.id, { ...n, children: [], depth: 0 }]));
   const roots: NodeWithLayout[] = [];
 
   nodes.forEach(node => {
@@ -588,7 +598,7 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
   // Simple approach: calculate the rightmost X position of any node in a subtree
   const getRightmostX = (node: NodeWithLayout): number => {
     let rightmost = node.position?.x || 0;
-    
+
     // Check all descendants
     const checkChildren = (n: NodeWithLayout) => {
       if (n.position?.x && n.position.x > rightmost) {
@@ -596,7 +606,7 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
       }
       n.children.forEach(checkChildren);
     };
-    
+
     node.children.forEach(checkChildren);
     return rightmost;
   };
@@ -646,7 +656,7 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
 
   return nodes.map(node => {
     const positioned = nodeMap.get(node.id);
-    
+
     return {
       ...node,
       position: positioned?.position || { x: 0, y: 0 },

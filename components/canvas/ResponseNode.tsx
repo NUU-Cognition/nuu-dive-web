@@ -12,6 +12,7 @@ interface ResponseNodeData {
   loading?: boolean;
   isInPath?: boolean;
   hasSelection?: boolean;
+  editMode?: boolean;
 }
 
 function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
@@ -64,13 +65,15 @@ function ResponseNode({ data, selected }: NodeProps<ResponseNodeData>) {
           <div
             className={`
               absolute inset-0 rounded-full transition-all
-              ${isInPath 
-            ? "bg-primary ring-4 ring-primary/60 scale-150 shadow-lg" 
-            : selected 
-                  ? "bg-primary ring-2 ring-primary/40 scale-110"
-                  : hasSelection
-                ? "bg-black/30 dark:bg-white/30 scale-90" // Dimmed when something else is selected
-                : "bg-black dark:bg-white dark:opacity-90 hover:ring-2 hover:ring-primary/20"
+              ${data.editMode
+                ? "bg-destructive ring-2 ring-destructive/60 hover:ring-4 hover:ring-destructive/80"
+                : isInPath 
+                  ? "bg-primary ring-4 ring-primary/60 scale-150 shadow-lg" 
+                  : selected 
+                    ? "bg-primary ring-2 ring-primary/40 scale-110"
+                    : hasSelection
+                      ? "bg-black/30 dark:bg-white/30 scale-90" // Dimmed when something else is selected
+                      : "bg-black dark:bg-white dark:opacity-90 hover:ring-2 hover:ring-primary/20"
               }
             `}
           />

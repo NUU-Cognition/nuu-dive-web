@@ -52,6 +52,7 @@ export default defineSchema({
     sourceUrl: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
     sourceMessageId: v.optional(v.id("messages")), // when concept is highlighted from a prior response
+    sourceChatId: v.optional(v.id("chats")), // the chat where this concept was created from
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
       fileName: v.string(),
@@ -66,6 +67,7 @@ export default defineSchema({
     locatorCss: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()), // Allow updatedAt field for concepts that have been modified
   })
     .index("by_dive", ["diveId"])
     .index("by_document", ["documentId"])

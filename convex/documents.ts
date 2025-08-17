@@ -121,3 +121,83 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+export const deleteWithRelated = mutation({
+  args: {
+    documentId: v.id("documents"),
+  },
+  handler: async (ctx, args) => {
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new Error("Document not found");
+    }
+    
+    // Get all concepts associated with this document
+    const concepts = await ctx.db
+      .query("concepts")
+      .withIndex("by_document", (q) => q.eq("documentId", args.documentId))
+      .collect();
+    
+    // Delete each concept and its associated chat/messages
+    for (const concept of concepts) {
+      const chat = await ctx.db
+        .query("chats")
+        .withIndex("by_concept", (q) => q.eq("conceptId", concept._id))
+        .first();
+      
+      if (chat) {
+        // Get all messages in this chat
+        const messages = await ctx.db
+          .query("messages")
+          .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+          .collect();
+        
+        // Soft delete all messages
+        const deletedAt = Date.now();
+        await Promise.all(
+          messages.map((message) =>
+            ctx.db.patch(message._id, { deletedAt })
+          )
+        );
+        
+        // Delete the chat
+        await ctx.db.delete(chat._id);
+      }
+      
+      // Delete the concept
+      await ctx.db.delete(concept._id);
+    }
+    
+    // Get chats directly anchored to this document
+    const documentChats = await ctx.db
+      .query("chats")
+      .withIndex("by_anchor", (q) => 
+        q.eq("anchorType", "document").eq("anchorId", args.documentId)
+      )
+      .collect();
+    
+    // Delete document-anchored chats and their messages
+    for (const chat of documentChats) {
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+        .collect();
+      
+      // Soft delete all messages
+      const deletedAt = Date.now();
+      await Promise.all(
+        messages.map((message) =>
+          ctx.db.patch(message._id, { deletedAt })
+        )
+      );
+      
+      // Delete the chat
+      await ctx.db.delete(chat._id);
+    }
+    
+    // Delete the document
+    await ctx.db.delete(args.documentId);
+    
+    return { success: true };
+  },
+});
