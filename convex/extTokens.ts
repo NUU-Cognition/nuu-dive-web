@@ -1,9 +1,17 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { createHash } from "crypto";
 
+// Simple hash function for tokens (Convex doesn't support crypto in mutations)
 function hashToken(token: string, salt: string): string {
-  return createHash("sha256").update(`${token}:${salt}`).digest("hex");
+  // Simple string-based hash for development (not cryptographically secure)
+  let hash = 0;
+  const input = `${token}:${salt}`;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(16);
 }
 
 export const create = mutation({

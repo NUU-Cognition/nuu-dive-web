@@ -20,7 +20,6 @@ interface DocumentNodeData {
   responseCount: number;
   conceptCount: number;
   selected?: boolean;
-  onAsk?: () => void;
   onOpen?: () => void;
 }
 
@@ -76,20 +75,13 @@ function DocumentNode({ data, selected }: NodeProps<DocumentNodeData>) {
       {/* Actions */}
       <div className="flex gap-2 mt-3">
         <button
-          onClick={data.onAsk}
+          onClick={data.onOpen}
           className="flex-1 px-3 py-1.5 text-xs font-medium rounded-md
                      bg-primary text-primary-foreground hover:bg-primary/90
                      transition-colors"
-        >
-          Prompt this document...
-        </button>
-        <button
-          onClick={data.onOpen}
-          className="px-3 py-1.5 text-xs font-medium rounded-md
-                     border hover:bg-accent transition-colors"
           title="Open in main panel"
         >
-          Open
+          Open Document
         </button>
       </div>
 

@@ -41,13 +41,23 @@ function DiveWorkspaceContent() {
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const { selectedConceptId, selectedChatId, selectedDocumentId, setSelectedChat, setSelectedDocument, addDocument } = useWorkspace();
   
+  // Check for extension parameters
+  const [extensionParams, setExtensionParams] = useState<{
+    fromExtension?: boolean;
+    title?: string;
+    conceptTitle?: string;
+    conceptSnippet?: string;
+    sourceUrl?: string;
+    sourceTitle?: string;
+  }>({});
+  
   // Convex mutations
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
 
-  // Get dive details from Convex
+  // Get dive details from Convex (skip for extension and mock IDs)
   const dive = useQuery(
     api.dives.get,
-    diveId && diveId !== "1" && diveId !== "2" 
+    diveId && diveId !== "1" && diveId !== "2" && !diveId.startsWith("ext_")
       ? { diveId: diveId as Id<"dives"> } 
       : "skip"
   );
@@ -57,6 +67,25 @@ function DiveWorkspaceContent() {
       router.replace("/auth/signin");
     }
   }, [status, router]);
+
+  // Parse extension parameters from URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromExtension = urlParams.get('fromExtension') === 'true';
+      
+      if (fromExtension) {
+        setExtensionParams({
+          fromExtension: true,
+          title: urlParams.get('title') || undefined,
+          conceptTitle: urlParams.get('conceptTitle') || undefined,
+          conceptSnippet: urlParams.get('conceptSnippet') || undefined,
+          sourceUrl: urlParams.get('sourceUrl') || undefined,
+          sourceTitle: urlParams.get('sourceTitle') || undefined,
+        });
+      }
+    }
+  }, []);
 
   if (status === "loading") {
     return (
@@ -82,13 +111,18 @@ function DiveWorkspaceContent() {
     );
   }
 
-  // Use mock data for legacy IDs
+  // Use mock data for legacy IDs or extension data
   const displayDive = dive || {
     _id: diveId,
-    title: diveId === "1" ? "Quantum Computing Research" : "Machine Learning Papers",
-    description: diveId === "1" 
-      ? "Exploring quantum entanglement and computing applications"
-      : "Deep learning architectures and optimization techniques",
+    title: extensionParams.title || 
+           (diveId === "1" ? "Quantum Computing Research" : 
+            diveId === "2" ? "Machine Learning Papers" : 
+            diveId.startsWith("ext_") ? "Extension Dive" : "Unknown Dive"),
+    description: extensionParams.fromExtension 
+      ? `Created from browser extension with concept: "${extensionParams.conceptTitle || 'Unnamed Concept'}"`
+      : (diveId === "1" 
+        ? "Exploring quantum entanglement and computing applications"
+        : "Deep learning architectures and optimization techniques"),
   };
 
   const handleAddUrl = async () => {
@@ -178,6 +212,11 @@ function DiveWorkspaceContent() {
             <div className="flex items-center gap-2">
               <GitBranch className="h-5 w-5" />
               <h1 className="text-lg font-semibold">{displayDive.title}</h1>
+              {extensionParams.fromExtension && (
+                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                  From Extension
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -296,6 +335,40 @@ function DiveWorkspaceContent() {
 
           {/* Center main panel */}
           <div className="flex-1 min-w-0">
+            {/* Extension concept preview */}
+            {extensionParams.fromExtension && extensionParams.conceptSnippet && (
+              <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                <div className="max-w-4xl mx-auto">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-blue-900 mb-2">
+                        {extensionParams.conceptTitle || 'Selected Text'}
+                      </h3>
+                      <p className="text-blue-800 mb-3 italic">
+                        "{extensionParams.conceptSnippet}"
+                      </p>
+                      {extensionParams.sourceUrl && (
+                        <div className="flex items-center gap-2 text-sm text-blue-600">
+                          <Link2 className="h-4 w-4" />
+                          <span>From: </span>
+                          <a 
+                            href={extensionParams.sourceUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {extensionParams.sourceTitle || extensionParams.sourceUrl}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {selectedDocumentId ? (
               <DocumentPanel
                 layout="main"

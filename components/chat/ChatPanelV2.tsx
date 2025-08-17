@@ -3,15 +3,16 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Send, GitBranch, Paperclip, Info, Plus } from "lucide-react";
+import { X, Send, GitBranch, Paperclip, Info, Plus, FileText } from "lucide-react";
 import MessageItem from "./MessageItem";
 import ContextInspector from "./ContextInspector";
 import ExportButton from "./ExportButton";
 import { useStreamChat } from "@/hooks/useStreamChat";
 import { useConvexChat } from "@/hooks/useConvexChat";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,18 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     userId: currentUserId || "",
     diveId,
   });
+  
+  // Get the concept for this chat
+  const concept = useQuery(
+    api.concepts.get,
+    conceptId ? { conceptId: conceptId as Id<"concepts"> } : "skip"
+  );
+  
+  // Get the document for this concept (contains extracted content)
+  const document = useQuery(
+    api.documents.get,
+    concept?.documentId ? { documentId: concept.documentId } : "skip"
+  );
 
   // Build indices for efficient lookups
   const byId = useMemo(() => new Map(messages.map((m) => [m._id, m])), [messages]);
@@ -210,13 +223,24 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       sentUserIdsRef.current.add(pathLeaf._id);
       setPendingParentId(pathLeaf._id);
       pendingParentIdRef.current = pathLeaf._id;
+      // Prepare attachments including extracted content from document
+      const attachments = [];
+      if (document && document.extractedContent && document.extractedContent.length > 0) {
+        attachments.push({
+          type: 'extracted_content',
+          content: document.extractedContent,
+          title: `${document.title} - Extracted Content`,
+          filename: 'extracted_content.md'
+        });
+      }
+      
       void sendMessage({
         chatId,
         parentMessageId: pathLeaf._id,
         userText: pathLeaf.content,
         messages: path,
         inclusionOverride: undefined,
-        attachments: [],
+        attachments,
       });
     }
   }, [chatId, path, pathLeaf, needsResponse, isStreaming, sendMessage, ready]);
@@ -255,13 +279,24 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       newPath.push(newUserMessage);
     }
 
+    // Prepare attachments including extracted content from document
+    const attachments = [];
+    if (document && document.extractedContent && document.extractedContent.length > 0) {
+      attachments.push({
+        type: 'extracted_content',
+        content: document.extractedContent,
+        title: `${document.title} - Extracted Content`,
+        filename: 'extracted_content.md'
+      });
+    }
+
     await sendMessage({
       chatId,
       parentMessageId: newUserMessage._id,
       userText: newUserMessage.content,
       messages: newPath,
       inclusionOverride: inclusionOverride,
-      attachments: [],
+      attachments,
     });
 
     // Persist overrides for this anchor if provided
@@ -312,6 +347,17 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
     }
     branchPath.push(branchMessage);
 
+    // Prepare attachments including extracted content from document
+    const attachments = [];
+    if (document && document.extractedContent && document.extractedContent.length > 0) {
+      attachments.push({
+        type: 'extracted_content',
+        content: document.extractedContent,
+        title: `${document.title} - Extracted Content`,
+        filename: 'extracted_content.md'
+      });
+    }
+
     // Send branched message to streaming API
     await sendMessage({
       chatId,
@@ -319,7 +365,7 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
       userText: branchMessage.content,
       messages: branchPath,
       inclusionOverride: undefined,
-      attachments: [],
+      attachments,
     });
   };
 
@@ -420,6 +466,29 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         </div>
       </div>
 
+      {/* Attached Sources */}
+      {document && document.extractedContent && (
+        <div className="border-t px-4 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Attached Sources</span>
+          </div>
+          <div className="bg-muted/50 rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-3 w-3 text-muted-foreground" />
+              <span className="text-xs font-mono">extracted_content.md</span>
+              <span className="text-xs text-muted-foreground">•</span>
+              <span className="text-xs text-muted-foreground">
+                {(document.extractedContent.length / 1024).toFixed(1)}KB
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {document.extractionLevel === 'full' ? 'Comprehensive document structure analysis' : 'Basic content extraction'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Context & Attachments Bar */}
       <div className="border-t px-4 py-2">
         <div className="flex items-center gap-2">
@@ -483,8 +552,10 @@ export default function ChatPanelV2({ chatId, conceptId, onClose }: ChatPanelPro
         open={contextInspectorOpen}
         onClose={() => setContextInspectorOpen(false)}
         messages={path}
-        // @ts-ignore - see patched ContextInspector
         onSave={(o: { includeIds?: string[]; excludeIds?: string[] }) => setInclusionOverride(o)}
+        extractedContent={document?.extractedContent}
+        documentTitle={document?.title}
+        extractionLevel={document?.extractionLevel}
       />
 
       {/* Branch Dialog */}

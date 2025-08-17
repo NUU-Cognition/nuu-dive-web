@@ -27,6 +27,9 @@ interface ContextInspectorProps {
   onClose: () => void;
   messages: Message[];
   onSave?: (o: { includeIds?: string[]; excludeIds?: string[] }) => void;
+  extractedContent?: string;
+  documentTitle?: string;
+  extractionLevel?: string;
 }
 
 export default function ContextInspector({
@@ -34,6 +37,9 @@ export default function ContextInspector({
   onClose,
   messages,
   onSave,
+  extractedContent,
+  documentTitle,
+  extractionLevel,
 }: ContextInspectorProps) {
 
   const [includedMessageIds, setIncludedMessageIds] = useState<Set<string>>(
@@ -120,14 +126,49 @@ export default function ContextInspector({
             </ScrollArea>
           </div>
 
-          {/* Attachments (placeholder) */}
+          {/* Extracted Content */}
           <div>
             <h3 className="mb-2 text-sm font-medium">Attached Sources</h3>
             <div className="space-y-2">
-              <div className="flex items-center gap-2 rounded-lg border p-2">
-                <Link2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">No sources attached yet</span>
-              </div>
+              {extractedContent ? (
+                <div className="rounded-lg border p-3 bg-secondary/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium">extracted_content.md</span>
+                    <span className="text-xs text-muted-foreground">•</span>
+                    <span className="text-xs text-muted-foreground">
+                      {(extractedContent.length / 1024).toFixed(1)}KB
+                    </span>
+                    {extractionLevel && (
+                      <>
+                        <span className="text-xs text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground">
+                          {extractionLevel} extraction
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {documentTitle && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      From: {documentTitle}
+                    </p>
+                  )}
+                  <ScrollArea className="h-[100px] rounded border bg-background p-2">
+                    <pre className="text-xs whitespace-pre-wrap text-muted-foreground">
+                      {extractedContent.substring(0, 500)}
+                      {extractedContent.length > 500 && '...'}
+                    </pre>
+                  </ScrollArea>
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ This content is included as context for the AI
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border p-2">
+                  <Link2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">No sources attached yet</span>
+                </div>
+              )}
             </div>
           </div>
 

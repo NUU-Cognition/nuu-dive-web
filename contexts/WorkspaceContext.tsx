@@ -123,8 +123,8 @@ export function WorkspaceProvider({
     };
   }, [session?.user?.email, session?.user?.name, getOrCreateUser]);
 
-  // Documents and Concepts for this dive (skip for mock dive IDs)
-  const isMockDiveId = diveId === "1" || diveId === "2";
+  // Documents and Concepts for this dive (skip for mock and extension dive IDs)
+  const isMockDiveId = diveId === "1" || diveId === "2" || diveId?.startsWith("ext_");
   
   const convexDocuments =
     useQuery(

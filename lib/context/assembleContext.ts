@@ -1,4 +1,5 @@
 import { LLMMessage } from "../llm/provider";
+import { summarizePDFForContext } from "../pdf/extractText";
 
 interface Message {
   _id: string;
@@ -48,10 +49,89 @@ export async function assembleContext({
     );
   }
 
+  // Find PDF URLs from attachments and messages
+  const pdfUrls = new Set<string>();
+  
+  // Check attachments for PDFs
+  attachments.forEach(a => {
+    if (a.url?.includes('.pdf')) {
+      pdfUrls.add(a.url);
+    }
+  });
+  
+  // Check messages for PDF references
+  messages.forEach(m => {
+    const urlMatches = m.content.match(/https?:\/\/[^\s]+\.pdf/g);
+    if (urlMatches) {
+      urlMatches.forEach(url => pdfUrls.add(url));
+    }
+  });
+
+  // Check for extracted content in messages (stored in concept snippets)
+  const extractedContents: string[] = [];
+  
+  // Look for content in messages that contain "--- Extracted Content ---" (new format) or "--- Extracted PDF Content ---" (legacy)
+  console.log('🔍 [CONTEXT] Searching for extracted content in', messages.length, 'messages');
+  
+  messages.forEach(m => {
+    console.log('🔍 [CONTEXT] Checking message:', m.role, m.content.substring(0, 100) + '...');
+    
+    if (m.content.includes('--- Extracted Content ---')) {
+      console.log('✅ [CONTEXT] Found extracted content in message:', m._id);
+      const contentMatch = m.content.match(/--- Extracted Content ---\n([\s\S]*)/);
+      if (contentMatch) {
+        extractedContents.push(`Extracted Content:\n${contentMatch[1]}`);
+        console.log('✅ [CONTEXT] Added extracted content, length:', contentMatch[1].length);
+      }
+    } else if (m.content.includes('--- Extracted PDF Content ---')) {
+      console.log('✅ [CONTEXT] Found legacy PDF content in message:', m._id);
+      const pdfContentMatch = m.content.match(/--- Extracted PDF Content ---\n([\s\S]*)/);
+      if (pdfContentMatch) {
+        extractedContents.push(`PDF Content:\n${pdfContentMatch[1]}`);
+        console.log('✅ [CONTEXT] Added PDF content, length:', pdfContentMatch[1].length);
+      }
+    }
+  });
+  
+  console.log('📊 [CONTEXT] Total extracted contents found:', extractedContents.length);
+  
+  // Check attachments for extracted content and document references
+  if (attachments.length > 0) {
+    for (const attachment of attachments) {
+      if (attachment.type === 'extracted_content' && attachment.content) {
+        // Direct extracted content from Gemini or other extractors
+        console.log('✅ [CONTEXT] Found extracted content in attachments');
+        extractedContents.push(attachment.content);
+        console.log('✅ [CONTEXT] Added attachment extracted content, length:', attachment.content.length);
+      } else if (attachment.type === 'pdf' && attachment.url) {
+        // Just acknowledge the PDF exists
+        extractedContents.push(`PDF Document Referenced: ${attachment.url}\n\nNote: PDF content may have been extracted and included in the conversation context above.`);
+      } else if (attachment.type === 'url' && attachment.url) {
+        // Acknowledge web content exists
+        extractedContents.push(`Web Document Referenced: ${attachment.url}\n\nNote: Web content may have been extracted and included in the conversation context above.`);
+      }
+    }
+  }
+  
   // Build system prompt
-  const system = `You are a helpful AI assistant that helps users explore concepts and ideas through branching conversations. 
+  let system = `You are a helpful AI assistant that helps users explore concepts and ideas through branching conversations. 
 Always cite sources when available using [Source Name](url) format.
 Provide clear, structured responses using markdown formatting.`;
+
+  if (extractedContents.length > 0) {
+    console.log('📋 [CONTEXT] Adding extracted content to system prompt');
+    console.log('📋 [CONTEXT] Content preview:', extractedContents[0].substring(0, 200) + '...');
+    
+    system += `
+
+EXTRACTED CONTENT AVAILABLE: I have access to the following extracted content in this conversation:
+
+${extractedContents.join('\n\n---\n\n')}
+
+You can reference specific content from these documents when answering questions. Quote relevant sections and provide citations when available.`;
+  } else {
+    console.log('⚠️ [CONTEXT] No extracted content found in messages');
+  }
 
   // Convert messages to LLM format - maintain conversation order
   const contextMessages: LLMMessage[] = filteredMessages

@@ -39,6 +39,8 @@ export default defineSchema({
       fileName: v.string(),
       pageCount: v.optional(v.number()),
     })),
+    extractedContent: v.optional(v.string()), // Store extracted PDF/URL content
+    extractionLevel: v.optional(v.union(v.literal("none"), v.literal("basic"), v.literal("full"))),
     createdBy: v.id("users"),
     createdAt: v.number(),
   }).index("by_dive", ["diveId"]),
@@ -51,6 +53,7 @@ export default defineSchema({
     sourceUrl: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
     sourceMessageId: v.optional(v.id("messages")), // when concept is highlighted from a prior response
+    sourceChatId: v.optional(v.id("chats")), // Add missing field
     pdfId: v.optional(v.id("_storage")),
     pdfMeta: v.optional(v.object({
       fileName: v.string(),
@@ -65,6 +68,8 @@ export default defineSchema({
     locatorCss: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()), // Add missing field
+    note: v.optional(v.string()), // Add missing field
   })
     .index("by_dive", ["diveId"])
     .index("by_document", ["documentId"])

@@ -1,14 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { X, Send, FileText, Link2, ExternalLink } from "lucide-react";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { useStreamChat } from "@/hooks/useStreamChat";
+import { Button } from "@/components/ui/button";
+import { X, FileText, Link2, ExternalLink } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
@@ -22,104 +18,12 @@ interface DocumentPanelProps {
 }
 
 export default function DocumentPanel({ documentId, onClose, layout = "dock" }: DocumentPanelProps) {
-  const { currentUserId, setSelectedChat, setLeafForChat } = useWorkspace();
-  const [question, setQuestion] = useState("");
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState("");
-  const [pendingParentId, setPendingParentId] = useState<string | null>(null);
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   
   // Get document details
   const document = useQuery(
     api.documents.get,
     { documentId: documentId as Id<"documents"> }
   );
-  
-  // Get existing chats for this document
-  const documentChats = useQuery(
-    api.chats.listByAnchor,
-    { anchorType: "document" as const, anchorId: documentId as Id<"documents"> }
-  );
-  
-  // Mutations
-  const createChatForDocument = useMutation(api.chats.createForDocument);
-  const createUserMessage = useMutation(api.messages.createUser);
-  const createAssistantMessage = useMutation(api.messages.createAssistant);
-  
-  // Streaming hook
-  const { sendMessage, isStreaming } = useStreamChat({
-    onToken: (token) => {
-      setStreamingMessage((prev) => prev + token);
-    },
-    onComplete: async (fullText) => {
-      // Persist assistant reply under the user message we just created
-      if (activeChatId && pendingParentId && currentUserId) {
-        const assistantId = await createAssistantMessage({
-          chatId: activeChatId as Id<"chats">,
-          parentMessageId: pendingParentId as Id<"messages">,
-          content: fullText,
-          tokenCount: fullText.trim().split(/\s+/).length,
-          userId: currentUserId as Id<"users">,
-        });
-        // Set the leaf to the new assistant message
-        setLeafForChat(activeChatId, assistantId as string);
-        setSelectedChat(activeChatId);
-      }
-      setStreamingMessage("");
-      setQuestion("");
-      setIsCreatingChat(false);
-      setPendingParentId(null);
-    },
-    onError: (error) => {
-      console.error("Stream error:", error);
-      setStreamingMessage("");
-      setIsCreatingChat(false);
-    },
-  });
-  
-  const handleAsk = async () => {
-    if (!question.trim() || !currentUserId || isStreaming) return;
-    
-    setIsCreatingChat(true);
-    
-    try {
-      let chatId = documentChats?.[0]?._id;
-      
-      // Create chat if it doesn't exist
-      if (!chatId) {
-        chatId = await createChatForDocument({
-          documentId: documentId as Id<"documents">,
-          diveId: document?.diveId as Id<"dives">,
-          title: document?.title,
-          userId: currentUserId as Id<"users">,
-        });
-      }
-      setActiveChatId(chatId as string);
-      
-      // Create user message
-      const userMessageId = await createUserMessage({
-        chatId: chatId as Id<"chats">,
-        content: question,
-        userId: currentUserId as Id<"users">,
-      });
-      setPendingParentId(userMessageId as string);
-      
-      // Stream response
-      await sendMessage({
-        chatId: chatId as string,
-        parentMessageId: userMessageId as string,
-        userText: question,
-        messages: [], // Note will exist server-side; we still attach for citations
-        inclusionOverride: undefined,
-        attachments: document?.url
-          ? [{ type: "url", url: document.url, title: document.title }]
-          : [],
-      });
-    } catch (error) {
-      console.error("Failed to ask document:", error);
-      setIsCreatingChat(false);
-    }
-  };
   
   const outerClass =
     layout === "main"
@@ -233,41 +137,6 @@ export default function DocumentPanel({ documentId, onClose, layout = "dock" }: 
             </div>
           </div>
         )}
-      </div>
-      
-      {/* Streaming response */}
-      {streamingMessage && (
-        <div className="px-4 py-3 border-t bg-muted/50">
-          <div className="text-sm whitespace-pre-wrap">{streamingMessage}</div>
-        </div>
-      )}
-      
-      {/* Ask input */}
-      <div className="border-t p-4 mt-auto">
-        <div className="space-y-3">
-          <label className="text-sm font-medium">Prompt this document...</label>
-          <Textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Enter a prompt for this document…"
-            className="min-h-[80px] resize-none"
-            disabled={isStreaming || isCreatingChat}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleAsk();
-              }
-            }}
-          />
-          <Button
-            onClick={handleAsk}
-            disabled={!question.trim() || isStreaming || isCreatingChat || !currentUserId}
-            className="w-full"
-          >
-            <Send className="mr-2 h-4 w-4" />
-            {isStreaming ? "Generating..." : "Prompt"}
-          </Button>
-        </div>
       </div>
     </div>
   );

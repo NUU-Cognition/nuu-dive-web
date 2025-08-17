@@ -12,6 +12,8 @@ export const create = mutation({
       fileName: v.string(),
       pageCount: v.optional(v.number()),
     })),
+    extractedContent: v.optional(v.string()),
+    extractionLevel: v.optional(v.union(v.literal("none"), v.literal("basic"), v.literal("full"))),
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -24,6 +26,8 @@ export const create = mutation({
       url: args.url,
       pdfId: args.pdfId,
       pdfMeta: args.pdfMeta,
+      extractedContent: args.extractedContent,
+      extractionLevel: args.extractionLevel,
       createdBy: args.userId,
       createdAt,
     });

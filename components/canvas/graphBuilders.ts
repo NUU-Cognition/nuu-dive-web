@@ -71,7 +71,6 @@ export function buildGraphElements(
         responseCount: doc.responseCount,
         conceptCount: doc.conceptCount,
         selected: selectedId === doc._id,
-        onAsk: () => onNodeClick?.(doc._id, "document"),
         // Open in main panel (replace canvas)
         onOpen: () => onNodeClick?.(doc._id, "document"),
       },
